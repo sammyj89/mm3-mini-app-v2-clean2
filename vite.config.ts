@@ -16,6 +16,8 @@ export default defineConfig({
     // https://www.npmjs.com/package/vite-plugin-mkcert
     process.env.HTTPS ? mkcert() : undefined,
   ],
+  build: {
+    target: 'esnext'   // allows top‑level await & dynamic imports
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))
