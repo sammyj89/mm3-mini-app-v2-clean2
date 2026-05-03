@@ -1,6 +1,6 @@
 <script setup>
 import { ref, onMounted } from 'vue'
-import { apiGet, apiPost } from '../services/api'
+import { apiGet, apiPost, apiPostQuery } from '../services/api'   // ← added apiPostQuery
 import { postEvent } from '../tma'
 
 // ── Current slots ──
@@ -25,7 +25,6 @@ async function runScanner() {
   scanning.value = true
   statusMsg.value = 'Scanning…'
   try {
-    // Call the endpoint that triggers the scanner and returns fresh top‑5
     const res = await apiPost('/api/run_screener')
     if (res.success && res.data.length) {
       picks.value = res.data
@@ -50,12 +49,11 @@ async function replaceSlot(newSymbol) {
 
   statusMsg.value = 'Rotating…'
   try {
-    const res = await apiPost('/api/rotate_symbol', { old: selectedSlot.value, new: newSymbol })
+    // ✅ Fixed: use apiPostQuery to send old/new as query parameters
+    const res = await apiPostQuery('/api/rotate_symbol', { old: selectedSlot.value, new: newSymbol })
     if (res.success) {
       statusMsg.value = `✅ Replaced ${selectedSlot.value.split(':')[0]} → ${newSymbol.split(':')[0]}`
-      // Refresh slots list
       await loadSlots()
-      // Re‑fetch scanner results (optional)
     } else {
       statusMsg.value = '❌ Rotation failed – check bot logs.'
     }
@@ -72,7 +70,8 @@ async function addSlot(newSymbol) {
   }
   statusMsg.value = 'Adding…'
   try {
-    const res = await apiPost('/api/symbol', { symbol: newSymbol })
+    // ✅ Fixed: use apiPostQuery for symbol addition as well
+    const res = await apiPostQuery('/api/symbol', { symbol: newSymbol })
     if (res.success) {
       statusMsg.value = `✅ Added ${newSymbol}`
       await loadSlots()
