@@ -10,6 +10,7 @@ import ChartView from './components/ChartView.vue'
 import ReleaseConfirm from './components/ReleaseConfirm.vue'
 import BottomControls from './components/BottomControls.vue'
 import { apiGet } from './services/api'
+import ScannerView from './components/ScannerView.vue'
 
 const slots = ref({})
 const selectedSymbol = ref('')
@@ -34,6 +35,7 @@ onMounted(loadSlots)
     <ScannerModal @slot-changed="loadSlots" />
 
     <nav class="tab-bar">
+      <button @click="currentTab='scanner'" :class="{ active: currentTab==='scanner' }">📡 Scanner</button>
       <button @click="currentTab='slots'" :class="{ active: currentTab==='slots' }">🎰 Slots</button>
       <button @click="currentTab='ladder'" :class="{ active: currentTab==='ladder' }">🪜 Ladder</button>
       <button @click="currentTab='trail'" :class="{ active: currentTab==='trail' }">🛡️ Trail</button>
@@ -45,6 +47,10 @@ onMounted(loadSlots)
     <main>
       <div v-if="currentTab === 'slots'" class="tab-content">
         <SlotCard v-for="(data, sym) in slots" :key="sym" :symbol="sym" :initial-data="data" />
+      </div>
+
+      <div v-if="currentTab === 'scanner'" class="tab-content">
+        <ScannerView />
       </div>
 
       <div v-if="currentTab === 'ladder'" class="tab-content">
