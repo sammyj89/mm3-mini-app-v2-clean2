@@ -18,6 +18,7 @@ export default defineConfig({
   ],
   build: {
     target: 'esnext'   // allows top‑level await & dynamic imports
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))
