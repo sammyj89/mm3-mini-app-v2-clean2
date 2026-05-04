@@ -47,7 +47,6 @@ async function resetRemaining() {
   loading.value = false
 }
 </script>
-
 <template>
   <div class="card">
     <h3>🪜 Ladder Controls</h3>
