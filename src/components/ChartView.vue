@@ -7,7 +7,7 @@ const canvas = ref(null)
 let chart = null
 
 async function loadChart() {
-  const res = await apiGet('/api/trades', { days: 7 })
+  const res = await apiGet('/api/trades_exchange')
   const trades = res.data || []
   const labels = []; const data = []; let cum = 0
   ;[...trades].reverse().forEach(t => {

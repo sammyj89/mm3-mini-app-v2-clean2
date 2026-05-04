@@ -6,7 +6,7 @@ const trades = ref([])
 let interval = null
 
 async function loadTrades() {
-  const res = await apiGet('/api/trades', { days: 1 })
+  const res = await apiGet('/api/trades_exchange')
   trades.value = (res.data || []).slice(0, 20)
 }
 
