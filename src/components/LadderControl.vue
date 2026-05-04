@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue'
 import { apiGet, apiPost } from '../services/api'
 
+
 const props = defineProps({ symbol: String })
 
 const spacing = ref(1.0)
@@ -30,11 +31,18 @@ async function resetAll() {
 }
 
 async function resetRemaining() {
+  if (!props.symbol) return          // ← guard
   loading.value = true
-  await apiPost('/api/ladder/reset?mode=remaining', { symbol: props.symbol })
+  try {
+    await apiPost(
+      `/api/ladder/reset?symbol=${encodeURIComponent(props.symbol)}&mode=remaining`,
+      {}   // no body needed; apiPost uses query string
+    )
+  } catch (e) {
+    console.error(e)
+  }
   loading.value = false
 }
-</script>
 
 <template>
   <div class="card">

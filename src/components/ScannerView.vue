@@ -1,6 +1,6 @@
 <script setup>
-import { ref, onMounted } from 'vue'
-import { apiGet, apiPost, apiPostQuery } from '../services/api'   // ← added apiPostQuery
+import { ref, computed, onMounted } from 'vue'
+import { apiGet, apiPost, apiPostQuery } from '../services/api'
 import { postEvent } from '../tma'
 
 // ── Current slots ──
@@ -11,6 +11,20 @@ const selectedSlot = ref('')
 const scanning = ref(false)
 const picks = ref([])
 const statusMsg = ref('')
+
+// ── Freshness ──
+const lastScanTimestamp = ref(null)
+
+const timeAgo = computed(() => {
+  const ts = lastScanTimestamp.value
+  if (!ts) return 'Never'
+  const diffSec = Math.floor(Date.now() / 1000) - ts
+  if (diffSec < 60) return `${diffSec}s ago`
+  const min = Math.floor(diffSec / 60)
+  if (min < 60) return `${min}m ago`
+  const hr = Math.floor(min / 60)
+  return `${hr}h ago`
+})
 
 // ── Load slots on mount ──
 async function loadSlots() {
@@ -28,6 +42,8 @@ async function runScanner() {
     const res = await apiPost('/api/run_screener')
     if (res.success && res.data.length) {
       picks.value = res.data
+      // Capture timestamp from response (assuming API now returns it)
+      lastScanTimestamp.value = res.timestamp || Math.floor(Date.now() / 1000)
       statusMsg.value = ''
     } else {
       picks.value = []
@@ -46,10 +62,8 @@ async function replaceSlot(newSymbol) {
     statusMsg.value = 'Please select a current slot to replace.'
     return
   }
-
   statusMsg.value = 'Rotating…'
   try {
-    // ✅ Fixed: use apiPostQuery to send old/new as query parameters
     const res = await apiPostQuery('/api/rotate_symbol', { old: selectedSlot.value, new: newSymbol })
     if (res.success) {
       statusMsg.value = `✅ Replaced ${selectedSlot.value.split(':')[0]} → ${newSymbol.split(':')[0]}`
@@ -62,7 +76,7 @@ async function replaceSlot(newSymbol) {
   }
 }
 
-// ── Quick add a new slot (without removing any) ──
+// ── Quick add a new slot ──
 async function addSlot(newSymbol) {
   if (Object.keys(slots.value).length >= 3) {
     statusMsg.value = 'All 3 slots are full – replace one first.'
@@ -70,7 +84,6 @@ async function addSlot(newSymbol) {
   }
   statusMsg.value = 'Adding…'
   try {
-    // ✅ Fixed: use apiPostQuery for symbol addition as well
     const res = await apiPostQuery('/api/symbol', { symbol: newSymbol })
     if (res.success) {
       statusMsg.value = `✅ Added ${newSymbol}`
@@ -107,7 +120,18 @@ async function addSlot(newSymbol) {
       <button class="btn scan-btn" @click="runScanner" :disabled="scanning">
         {{ scanning ? '⏳ Scanning…' : 'Start Scan' }}
       </button>
+      <p class="scan-freshness" v-if="lastScanTimestamp !== null">
+        Last scan: {{ timeAgo }}
+      </p>
+      <p class="scan-freshness" v-else>
+        No recent scan data.
+      </p>
       <p class="status" v-if="statusMsg">{{ statusMsg }}</p>
+    </div>
+
+    <!-- Empty state when no picks and not scanning -->
+    <div v-if="picks.length === 0 && !scanning" class="card empty-state">
+      📡 No scanner data yet – tap <strong>Start Scan</strong> to find today’s top movers.
     </div>
 
     <!-- Scanner Results -->
@@ -218,5 +242,15 @@ h3 {
   color: #ffa502;
   font-size: 12px;
   margin-top: 6px;
+}
+.scan-freshness {
+  font-size: 12px;
+  color: #aaa;
+  margin-top: 4px;
+}
+.empty-state {
+  text-align: center;
+  padding: 20px;
+  color: #aaa;
 }
 </style>
