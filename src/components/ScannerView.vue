@@ -38,7 +38,19 @@ async function loadSlots() {
     console.error('loadSlots error', e)
   }
 }
-
+async function fetchExistingPicks() {
+  try {
+    const res = await apiGet('/api/screener_top5')
+    if (res.success && res.data) {
+      const data = res.data
+      const picksList = Array.isArray(data) ? data : (data.picks || [])
+      if (picksList.length) {
+        picks.value = picksList
+        lastScanTimestamp.value = data.generated_ts || null
+      }
+    }
+  } catch (e) { /* ignore */ }
+}
 onMounted(() => {
   loadSlots()
   fetchExistingPicks()   // <-- add this
