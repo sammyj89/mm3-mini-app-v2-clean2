@@ -47,6 +47,7 @@ async function resetRemaining() {
   }
   loading.value = false
 }
+</script>          // ← INSERT THIS LINE
 
 <template>
   <div class="card">
