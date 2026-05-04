@@ -38,6 +38,8 @@ async function loadSlots() {
     console.error('loadSlots error', e)
   }
 }
+
+// ── Load existing scanner picks (if any) ──
 async function fetchExistingPicks() {
   try {
     const res = await apiGet('/api/screener_top5')
@@ -49,11 +51,14 @@ async function fetchExistingPicks() {
         lastScanTimestamp.value = data.generated_ts || null
       }
     }
-  } catch (e) { /* ignore */ }
+  } catch (e) {
+    // ignore
+  }
 }
+
 onMounted(() => {
   loadSlots()
-  fetchExistingPicks()   // <-- add this
+  fetchExistingPicks()
 })
 
 // ── Run the scanner ──
@@ -64,7 +69,6 @@ async function runScanner() {
     const res = await apiPost('/api/run_screener')
     if (res.success && res.data.length) {
       picks.value = res.data
-      // Capture timestamp from response (assuming API now returns it)
       lastScanTimestamp.value = res.timestamp || Math.floor(Date.now() / 1000)
       statusMsg.value = ''
     } else {
@@ -115,21 +119,6 @@ async function addSlot(newSymbol) {
     }
   } catch (e) {
     statusMsg.value = 'Error: ' + e.message
-  }
-}
-async function fetchExistingPicks() {
-  try {
-    const res = await apiGet('/api/screener_top5')
-    if (res.success && res.data) {
-      const data = res.data
-      const picksList = Array.isArray(data) ? data : (data.picks || [])
-      if (picksList.length) {
-        picks.value = picksList
-        lastScanTimestamp.value = data.generated_ts || null
-      }
-    }
-  } catch (e) {
-    // ignore
   }
 }
 </script>
