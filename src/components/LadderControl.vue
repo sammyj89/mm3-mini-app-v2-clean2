@@ -2,7 +2,6 @@
 import { ref, watch } from 'vue'
 import { apiGet, apiPost } from '../services/api'
 
-
 const props = defineProps({ symbol: String })
 
 const spacing = ref(1.0)
@@ -47,7 +46,7 @@ async function resetRemaining() {
   }
   loading.value = false
 }
-</script>          // ← INSERT THIS LINE
+</script>
 
 <template>
   <div class="card">
@@ -69,7 +68,7 @@ async function resetRemaining() {
 </template>
 
 <style scoped>
-.card { /* same as SlotCard */ background: var(--card, #16213e); border-radius:10px; padding:14px; margin-bottom:10px; }
+.card { background: var(--card, #16213e); border-radius:10px; padding:14px; margin-bottom:10px; }
 h3 { color: #00d4ff; font-size:13px; margin-bottom:10px; text-transform:uppercase; }
 .slider-row { display:flex; align-items:center; gap:10px; margin-bottom:12px; }
 .slider-row input { flex:1; accent-color:#00d4ff; }
