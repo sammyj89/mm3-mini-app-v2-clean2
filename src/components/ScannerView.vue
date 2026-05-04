@@ -28,8 +28,15 @@ const timeAgo = computed(() => {
 
 // ── Load slots on mount ──
 async function loadSlots() {
-  const res = await apiGet('/api/status_all')
-  if (res.success) slots.value = res.data
+  try {
+    const res = await apiGet('/api/status_all')
+    if (res.success && res.data) {
+      // Force Vue to see the change by spreading into a new object
+      slots.value = { ...res.data }
+    }
+  } catch (e) {
+    console.error('loadSlots error', e)
+  }
 }
 
 onMounted(loadSlots)
