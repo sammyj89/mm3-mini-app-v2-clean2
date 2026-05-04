@@ -39,7 +39,10 @@ async function loadSlots() {
   }
 }
 
-onMounted(loadSlots)
+onMounted(() => {
+  loadSlots()
+  fetchExistingPicks()   // <-- add this
+})
 
 // ── Run the scanner ──
 async function runScanner() {
@@ -100,6 +103,21 @@ async function addSlot(newSymbol) {
     }
   } catch (e) {
     statusMsg.value = 'Error: ' + e.message
+  }
+}
+async function fetchExistingPicks() {
+  try {
+    const res = await apiGet('/api/screener_top5')
+    if (res.success && res.data) {
+      const data = res.data
+      const picksList = Array.isArray(data) ? data : (data.picks || [])
+      if (picksList.length) {
+        picks.value = picksList
+        lastScanTimestamp.value = data.generated_ts || null
+      }
+    }
+  } catch (e) {
+    // ignore
   }
 }
 </script>
