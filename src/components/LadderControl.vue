@@ -38,10 +38,10 @@ async function resetRemaining() {
   if (!props.symbol) return
   loading.value = true
   try {
-    await apiPost(
-      `/api/ladder/reset?mode=remaining`,
-      { symbol: props.symbol }
-    )
+    await apiPost('/api/ladder/reset', {
+      symbol: props.symbol,
+      mode: 'remaining'
+    })
   } catch (e) {
     console.error(e)
   }
