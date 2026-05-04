@@ -26,17 +26,21 @@ async function setSpacing(val) {
 
 async function resetAll() {
   loading.value = true
-  await apiPost('/api/ladder/reset', { symbol: props.symbol })
+  try {
+    await apiPost('/api/ladder/reset', { symbol: props.symbol })
+  } catch (e) {
+    console.error(e)
+  }
   loading.value = false
 }
 
 async function resetRemaining() {
-  if (!props.symbol) return          // ← guard
+  if (!props.symbol) return
   loading.value = true
   try {
     await apiPost(
-      `/api/ladder/reset?symbol=${encodeURIComponent(props.symbol)}&mode=remaining`,
-      {}   // no body needed; apiPost uses query string
+      `/api/ladder/reset?mode=remaining`,
+      { symbol: props.symbol }
     )
   } catch (e) {
     console.error(e)
