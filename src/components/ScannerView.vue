@@ -67,10 +67,24 @@ async function runScanner() {
   statusMsg.value = 'Scanning…'
   try {
     const res = await apiPost('/api/run_screener')
-    if (res.success && res.data.length) {
-      picks.value = res.data
-      lastScanTimestamp.value = res.timestamp || Math.floor(Date.now() / 1000)
-      statusMsg.value = ''
+    if (res.success && res.data) {
+      // data can be an array (old format) or an object with "picks" (new format)
+      let picksList = []
+      let timestamp = null
+      if (Array.isArray(res.data)) {
+        picksList = res.data
+      } else if (res.data.picks) {
+        picksList = res.data.picks
+        timestamp = res.data.generated_ts
+      }
+      if (picksList.length) {
+        picks.value = picksList
+        lastScanTimestamp.value = timestamp || Math.floor(Date.now() / 1000)
+        statusMsg.value = ''
+      } else {
+        picks.value = []
+        statusMsg.value = 'No suitable pairs found.'
+      }
     } else {
       picks.value = []
       statusMsg.value = 'No suitable pairs found.'
