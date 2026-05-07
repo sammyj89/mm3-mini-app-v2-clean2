@@ -1,18 +1,13 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { apiGet, apiPost, apiPostQuery } from '../services/api'
 import { postEvent } from '../tma'
 
-// ── Current slots ──
 const slots = ref({})
 const selectedSlot = ref('')
-
-// ── Scanner results ──
 const scanning = ref(false)
 const picks = ref([])
 const statusMsg = ref('')
-
-// ── Freshness ──
 const lastScanTimestamp = ref(null)
 
 const timeAgo = computed(() => {
@@ -26,12 +21,10 @@ const timeAgo = computed(() => {
   return `${hr}h ago`
 })
 
-// ── Load slots on mount ──
 async function loadSlots() {
   try {
     const res = await apiGet('/api/status_all')
     if (res.success && res.data) {
-      // Force Vue to see the change by spreading into a new object
       slots.value = { ...res.data }
     }
   } catch (e) {
@@ -39,7 +32,6 @@ async function loadSlots() {
   }
 }
 
-// ── Load existing scanner picks (if any) ──
 async function fetchExistingPicks() {
   try {
     const res = await apiGet('/api/screener_top5')
@@ -51,14 +43,32 @@ async function fetchExistingPicks() {
         lastScanTimestamp.value = data.generated_ts || null
       }
     }
-  } catch (e) {
-    // ignore
-  }
+  } catch (e) { /* ignore */ }
 }
+
+// ── Polling set up ──
+let refreshInterval = null
+let timeAgoInterval = null
 
 onMounted(() => {
   loadSlots()
   fetchExistingPicks()
+
+  // Refresh data every 15 seconds
+  refreshInterval = setInterval(() => {
+    loadSlots()
+    fetchExistingPicks()
+  }, 15_000)
+
+  // Force "time ago" to update every second
+  timeAgoInterval = setInterval(() => {
+    lastScanTimestamp.value = lastScanTimestamp.value
+  }, 1_000)
+})
+
+onUnmounted(() => {
+  clearInterval(refreshInterval)
+  clearInterval(timeAgoInterval)
 })
 
 // ── Run the scanner ──

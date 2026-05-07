@@ -1,14 +1,11 @@
 <script setup>
-import { ref, watch } from 'vue'
-import { apiGet, apiPost } from '../services/api'
 import { ref, watch, onMounted, onUnmounted } from 'vue'
-
+import { apiGet, apiPost } from '../services/api'
 
 const props = defineProps({ symbol: String })
 
 const spacing = ref(1.0)
 const loading = ref(false)
-
 let interval = null
 
 async function fetchSpacing() {
@@ -64,6 +61,7 @@ async function resetRemaining() {
   loading.value = false
 }
 </script>
+
 <template>
   <div class="card">
     <h3>🪜 Ladder Controls</h3>

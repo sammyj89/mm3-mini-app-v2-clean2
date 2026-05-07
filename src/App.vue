@@ -1,20 +1,20 @@
 <script setup>
 import { ref, onMounted } from 'vue'
+import HomeView from './components/HomeView.vue'
 import SlotCard from './components/SlotCard.vue'
 import LadderControl from './components/LadderControl.vue'
 import ScannerModal from './components/ScannerModal.vue'
 import TrailSettings from './components/TrailSettings.vue'
-import RiskPanel from './components/RiskPanel.vue'
 import TradeHistory from './components/TradeHistory.vue'
 import ChartView from './components/ChartView.vue'
 import ReleaseConfirm from './components/ReleaseConfirm.vue'
 import BottomControls from './components/BottomControls.vue'
-import { apiGet } from './services/api'
 import ScannerView from './components/ScannerView.vue'
+import { apiGet } from './services/api'
 
 const slots = ref({})
 const selectedSymbol = ref('')
-const currentTab = ref('slots')
+const currentTab = ref('home')   // ← start on Home
 
 async function loadSlots() {
   const res = await apiGet('/api/status_all')
@@ -35,16 +35,20 @@ onMounted(loadSlots)
     <ScannerModal @slot-changed="loadSlots" />
 
     <nav class="tab-bar">
+      <button @click="currentTab='home'"    :class="{ active: currentTab==='home' }">🏠 Home</button>
       <button @click="currentTab='scanner'" :class="{ active: currentTab==='scanner' }">📡 Scanner</button>
-      <button @click="currentTab='slots'" :class="{ active: currentTab==='slots' }">🎰 Slots</button>
-      <button @click="currentTab='ladder'" :class="{ active: currentTab==='ladder' }">🪜 Ladder</button>
-      <button @click="currentTab='trail'" :class="{ active: currentTab==='trail' }">🛡️ Trail</button>
-      <button @click="currentTab='risk'" :class="{ active: currentTab==='risk' }">⚠️ Risk</button>
-      <button @click="currentTab='trades'" :class="{ active: currentTab==='trades' }">📋 Trades</button>
-      <button @click="currentTab='chart'" :class="{ active: currentTab==='chart' }">📈 Chart</button>
+      <button @click="currentTab='slots'"   :class="{ active: currentTab==='slots' }">🎰 Slots</button>
+      <button @click="currentTab='ladder'"  :class="{ active: currentTab==='ladder' }">🪜 Ladder</button>
+      <button @click="currentTab='trail'"   :class="{ active: currentTab==='trail' }">🛡️ Trail</button>
+      <button @click="currentTab='trades'"  :class="{ active: currentTab==='trades' }">📋 Trades</button>
+      <button @click="currentTab='chart'"   :class="{ active: currentTab==='chart' }">📈 Chart</button>
     </nav>
 
     <main>
+      <div v-if="currentTab === 'home'" class="tab-content">
+        <HomeView />
+      </div>
+
       <div v-if="currentTab === 'slots'" class="tab-content">
         <SlotCard v-for="(data, sym) in slots" :key="sym" :symbol="sym" :initial-data="data" />
       </div>
@@ -65,13 +69,6 @@ onMounted(loadSlots)
           <option v-for="(_, sym) in slots" :key="sym" :value="sym">{{ sym.split(':')[0] }}</option>
         </select>
         <TrailSettings :symbol="selectedSymbol" />
-      </div>
-
-      <div v-if="currentTab === 'risk'" class="tab-content">
-        <select v-model="selectedSymbol" class="symbol-select">
-          <option v-for="(_, sym) in slots" :key="sym" :value="sym">{{ sym.split(':')[0] }}</option>
-        </select>
-        <RiskPanel :symbol="selectedSymbol" />
       </div>
 
       <div v-if="currentTab === 'trades'" class="tab-content">
