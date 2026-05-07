@@ -12,13 +12,10 @@ async function loadSummary() {
     const res = await apiGet('/api/status_all')
     if (res.success && res.data) {
       const slots = res.data
-      // equity and daily pnl are global - grab from the first slot
       const firstKey = Object.keys(slots)[0]
       if (firstKey) {
         equity.value = slots[firstKey].equity || 0
-        dailyPnl.value = slots[firstKey].daily_pnl || 0
       }
-      // build positions list
       positions.value = Object.entries(slots).map(([sym, data]) => {
         const live = data.live || {}
         const side = live.side || 'flat'
@@ -35,13 +32,26 @@ async function loadSummary() {
   } catch (e) {
     console.error(e)
   }
+
+  // Get today's P&L from exchange trades (same source as Trades tab)
+  try {
+    const tradesRes = await apiGet('/api/trades_exchange')
+    if (tradesRes.success && tradesRes.data) {
+      const oneDayAgo = Date.now() / 1000 - 86400
+      const todayTrades = tradesRes.data.filter(t => t.ts > oneDayAgo)
+      dailyPnl.value = todayTrades.reduce((sum, t) => sum + (t.pnl || 0), 0)
+    }
+  } catch (e) {
+    console.error('daily pnl fetch error', e)
+  }
+
   loading.value = false
 }
 
 let interval = null
 onMounted(() => {
   loadSummary()
-  interval = setInterval(loadSummary, 10_000) // refresh every 10s
+  interval = setInterval(loadSummary, 10_000)
 })
 onUnmounted(() => clearInterval(interval))
 </script>
