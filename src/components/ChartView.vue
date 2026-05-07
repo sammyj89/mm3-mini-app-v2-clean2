@@ -1,10 +1,18 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import Chart from 'chart.js/auto'
 import { apiGet } from '../services/api'
 
 const canvas = ref(null)
 let chart = null
+let interval = null
+
+onMounted(() => {
+  loadChart()
+  interval = setInterval(loadChart, 30000)  // chart data changes slowly
+})
+
+onUnmounted(() => clearInterval(interval))
 
 async function loadChart() {
   const res = await apiGet('/api/trades_exchange')

@@ -1,20 +1,37 @@
 <script setup>
 import { ref, watch } from 'vue'
 import { apiGet, apiPost } from '../services/api'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
+
 
 const props = defineProps({ symbol: String })
 
 const spacing = ref(1.0)
 const loading = ref(false)
 
+let interval = null
+
 async function fetchSpacing() {
   const res = await apiGet('/api/config', { key: 'LADDER_SPACING_MULTIPLIER' })
   if (res.success) spacing.value = parseFloat(res.value) || 1.0
 }
 
-watch(() => props.symbol, () => {
-  if (props.symbol) fetchSpacing()
-}, { immediate: true })
+watch(() => props.symbol, (newSym) => {
+  if (newSym) {
+    fetchSpacing()
+    clearInterval(interval)
+    interval = setInterval(fetchSpacing, 15000)
+  }
+})
+
+onMounted(() => {
+  if (props.symbol) {
+    fetchSpacing()
+    interval = setInterval(fetchSpacing, 15000)
+  }
+})
+
+onUnmounted(() => clearInterval(interval))
 
 async function setSpacing(val) {
   loading.value = true
