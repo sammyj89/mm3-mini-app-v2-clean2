@@ -33,10 +33,19 @@ async function loadGlobals() {
       const firstKey = Object.keys(slots.value)[0]
       if (firstKey) {
         equity.value = slots.value[firstKey].equity || 0
-        dailyPnl.value = slots.value[firstKey].daily_pnl || 0
       }
     }
   } catch (e) { console.error(e) }
+
+  // Compute daily PnL from exchange trades (same as Home tab)
+  try {
+    const tradesRes = await apiGet('/api/trades_exchange')
+    if (tradesRes.success && tradesRes.data) {
+      const oneDayAgo = Date.now() / 1000 - 86400
+      const todayTrades = tradesRes.data.filter(t => t.ts > oneDayAgo)
+      dailyPnl.value = todayTrades.reduce((sum, t) => sum + (t.pnl || 0), 0)
+    }
+  } catch (e) { console.error('header pnl error', e) }
 }
 async function checkConnection() {
   try {

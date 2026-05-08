@@ -6,7 +6,7 @@ import { apiGet } from '../services/api'
 const canvas = ref(null)
 let chart = null
 let interval = null
-const timeRange = ref('7d')   // default
+const timeRange = ref('7d')
 
 const timeRanges = {
   '24h': 1,
@@ -38,7 +38,7 @@ async function loadChart() {
 
 onMounted(() => {
   loadChart()
-  interval = setInterval(loadChart, 30000)   // refresh every 30s
+  interval = setInterval(loadChart, 30000)
 })
 onUnmounted(() => clearInterval(interval))
 </script>
