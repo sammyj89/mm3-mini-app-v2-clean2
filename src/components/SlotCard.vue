@@ -3,10 +3,14 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { apiGet, apiPost } from '../services/api'
 import SkeletonCard from './SkeletonCard.vue'
 
-const props = defineProps({ symbol: String, initialData: Object })
-const live = ref(props.initialData?.live || {})
-const ladder = ref(props.initialData?.ladder || {})
-const daily = ref(props.initialData?.daily_pnl || 0)
+const props = defineProps({
+  symbol: { type: String, required: true },
+  initialData: { type: Object, default: () => ({}) }
+})
+
+const live = ref(props.initialData.live || {})
+const ladder = ref(props.initialData.ladder || {})
+const daily = ref(props.initialData.daily_pnl || 0)
 const loading = ref(true)
 const emit = defineEmits(['release'])
 
@@ -15,6 +19,10 @@ const computedPnL = () => {
   const side = live.value.side || 'short'
   const qty = Math.abs(live.value.net_qty)
   return side === 'short' ? (live.value.avg_entry - live.value.mid) * qty : (live.value.mid - live.value.avg_entry) * qty
+}
+const posLine = () => {
+  if (!live.value?.net_qty) return 'FLAT'
+  return `${live.value.side} ${Math.abs(live.value.net_qty).toFixed(4)}`
 }
 const filledPct = () => {
   if (!ladder.value?.total) return 0
@@ -30,81 +38,83 @@ async function refresh() {
       ladder.value = res.data.ladder || {}
       daily.value = res.data.daily_pnl || 0
     }
-  } catch (e) {}
+  } catch (e) {
+    console.error(e)
+  }
   loading.value = false
 }
-onMounted(() => { refresh(); interval = setInterval(refresh, 5000) })
+
+onMounted(() => {
+  refresh()
+  interval = setInterval(refresh, 5000)
+})
 onUnmounted(() => clearInterval(interval))
-async function quickSeed() { /* unchanged */ }
-async function resetAllLadder() { /* unchanged */ }
-function release() { emit('release', props.symbol) }
+
+async function quickSeed() {
+  loading.value = true
+  try {
+    await apiPost('/api/symbol', { symbol: props.symbol })
+    await refresh()
+  } catch (e) {
+    console.error(e)
+  }
+  loading.value = false
+}
+
+async function resetAllLadder() {
+  loading.value = true
+  try {
+    await apiPost('/api/ladder/reset', { symbol: props.symbol })
+    await refresh()
+  } catch (e) {
+    console.error(e)
+  }
+  loading.value = false
+}
+
+function release() {
+  emit('release', props.symbol)
+}
 </script>
 
 <template>
-  <div v-if="loading"><SkeletonCard /></div>
-  <div v-else class="card">
-    <div class="slot-row">
-      <span class="slot-symbol">{{ symbol.split(':')[0] }}</span>
-      <span :class="['slot-pnl', computedPnL() >= 0 ? 'green' : 'red']">${{ computedPnL().toFixed(2) }}</span>
-    </div>
-    <div class="metrics">
-      <div><div class="metric-label">Mid</div><div class="metric-value">{{ (live.mid || 0).toFixed(6) }}</div></div>
-      <div><div class="metric-label">Position</div><div class="metric-value">{{ live.net_qty ? `${live.side} ${Math.abs(live.net_qty).toFixed(4)}` : 'FLAT' }}</div></div>
-      <div><div class="metric-label">Entry</div><div class="metric-value">{{ (live.avg_entry || 0).toFixed(6) }}</div></div>
-      <div><div class="metric-label">SL</div><div class="metric-value">{{ live.live_sl || '--' }}</div></div>
-    </div>
-    <div class="ladder-bar-outer">
-      <div class="ladder-bar-inner" :style="{ width: filledPct() + '%' }"></div>
-      <div class="ladder-bar-text">{{ ladder.consumed || 0 }}/{{ ladder.total || 0 }} filled</div>
-    </div>
-    <div class="control-row">
-      <button class="btn" @click="quickSeed">⚡ Seed</button>
-      <button class="btn" @click="resetAllLadder">🔄 Reset</button>
-      <button class="btn" @click="release">🔓 Release</button>
-    </div>
-  </div>
-</template>
-
-<style scoped>
-.card { background: var(--card, #16213e); border-radius:12px; padding:16px; margin-bottom:12px; box-shadow:0 2px 8px rgba(0,0,0,0.3); }
-/* rest of styles from original SlotCard but with monospace fonts, etc. */
-</style>
-
-<template>
-  <div class="card">
-    <div class="slot-row">
-      <span class="slot-symbol">{{ symbol.split(':')[0] }}</span>
-      <span :class="['slot-pnl', pnlClass()]">${{ computedPnL().toFixed(2) }}</span>
-    </div>
-
-    <div class="metrics">
-      <div>
-        <div class="metric-label">Mid</div>
-        <div class="metric-value">{{ (live.mid || 0).toFixed(6) }}</div>
+  <div>
+    <SkeletonCard v-if="loading" />
+    <div v-else class="card">
+      <div class="slot-row">
+        <span class="slot-symbol">{{ symbol.split(':')[0] }}</span>
+        <span :class="['slot-pnl', computedPnL() >= 0 ? 'green' : 'red']">${{ computedPnL().toFixed(2) }}</span>
       </div>
-      <div>
-        <div class="metric-label">Position</div>
-        <div class="metric-value">{{ posLine() }}</div>
-      </div>
-      <div>
-        <div class="metric-label">Entry</div>
-        <div class="metric-value">{{ (live.avg_entry || 0).toFixed(6) }}</div>
-      </div>
-      <div>
-        <div class="metric-label">Stop Loss</div>
-        <div class="metric-value">{{ live.live_sl || '--' }}</div>
-      </div>
-    </div>
 
-    <div class="ladder-bar-outer">
-      <div class="ladder-bar-inner" :style="{ width: filledPct() + '%' }"></div>
-      <div class="ladder-bar-text">{{ ladder.consumed || 0 }}/{{ ladder.total || 0 }} filled</div>
-    </div>
+      <div class="metrics">
+        <div>
+          <div class="metric-label">Mid</div>
+          <div class="metric-value">{{ (live.mid || 0).toFixed(6) }}</div>
+        </div>
+        <div>
+          <div class="metric-label">Position</div>
+          <div class="metric-value">{{ posLine() }}</div>
+        </div>
+        <div>
+          <div class="metric-label">Entry</div>
+          <div class="metric-value">{{ (live.avg_entry || 0).toFixed(6) }}</div>
+        </div>
+        <div>
+          <div class="metric-label">Stop Loss</div>
+          <div class="metric-value">{{ live.live_sl || '--' }}</div>
+        </div>
+      </div>
 
-    <div class="control-row">
-      <button class="btn" @click="quickSeed">⚡ Seed</button>
-      <button class="btn" @click="resetAllLadder">🔄 Reset</button>
-      <button class="btn" @click="release">🔓 Release</button>
+      <div class="ladder-bar-outer">
+        <div class="ladder-bar-inner" :style="{ width: filledPct() + '%' }"></div>
+        <div class="ladder-bar-text">{{ ladder.consumed || 0 }}/{{ ladder.total || 0 }} filled</div>
+      </div>
+
+      <div class="control-row">
+        <button class="btn" @click="quickSeed">⚡ Seed</button>
+        <button class="btn" @click="resetAllLadder">🔄 Reset</button>
+        <button class="btn" @click="release">🔓 Release</button>
+      </div>
     </div>
   </div>
 </template>
@@ -112,9 +122,10 @@ function release() { emit('release', props.symbol) }
 <style scoped>
 .card {
   background: var(--card, #16213e);
-  border-radius: 10px;
-  padding: 14px;
-  margin-bottom: 10px;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
 }
 .slot-row {
   display: flex;
@@ -125,6 +136,7 @@ function release() { emit('release', props.symbol) }
 .slot-symbol {
   font-weight: bold;
   font-size: 14px;
+  font-family: monospace;
 }
 .slot-pnl {
   font-family: monospace;
@@ -159,9 +171,7 @@ function release() { emit('release', props.symbol) }
   color: #fff;
   background: #3742fa;
 }
-.btn:active {
-  transform: scale(0.97);
-}
+.btn:active { transform: scale(0.97); }
 .ladder-bar-outer {
   background: rgba(255,255,255,0.1);
   border-radius: 8px;
