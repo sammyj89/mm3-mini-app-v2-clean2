@@ -1,7 +1,9 @@
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import HomeView from './components/HomeView.vue'
 import SlotCard from './components/SlotCard.vue'
+import LadderVisual from './components/LadderVisual.vue'
+import OrderList from './components/OrderList.vue'
 import ScannerView from './components/ScannerView.vue'
 import TradeHistory from './components/TradeHistory.vue'
 import ChartView from './components/ChartView.vue'
@@ -12,16 +14,18 @@ import { apiGet } from './services/api'
 const slots = ref({})
 const selectedSymbol = ref('')
 const currentTab = ref('home')
+const slotSubTab = ref('cards')        // 'cards' | 'ladder' | 'orders'
 const equity = ref(0)
 const dailyPnl = ref(0)
 const connectionOk = ref(false)
+const theme = ref(localStorage.getItem('mm3_theme') || 'dark')
 
-// Dark/light theme
-const theme = ref('dark')
 function toggleTheme() {
   theme.value = theme.value === 'dark' ? 'light' : 'dark'
+  localStorage.setItem('mm3_theme', theme.value)
   document.documentElement.setAttribute('data-theme', theme.value)
 }
+onMounted(() => document.documentElement.setAttribute('data-theme', theme.value))
 
 async function loadGlobals() {
   try {
@@ -31,13 +35,9 @@ async function loadGlobals() {
       const keys = Object.keys(res.data)
       if (keys.length && !selectedSymbol.value) selectedSymbol.value = keys[0]
       const firstKey = Object.keys(slots.value)[0]
-      if (firstKey) {
-        equity.value = slots.value[firstKey].equity || 0
-      }
+      if (firstKey) equity.value = slots.value[firstKey].equity || 0
     }
   } catch (e) { console.error(e) }
-
-  // Compute daily PnL from exchange trades (same as Home tab)
   try {
     const tradesRes = await apiGet('/api/trades_exchange')
     if (tradesRes.success && tradesRes.data) {
@@ -45,31 +45,22 @@ async function loadGlobals() {
       const todayTrades = tradesRes.data.filter(t => t.ts > oneDayAgo)
       dailyPnl.value = todayTrades.reduce((sum, t) => sum + (t.pnl || 0), 0)
     }
-  } catch (e) { console.error('header pnl error', e) }
+  } catch (e) { console.error(e) }
 }
 async function checkConnection() {
-  try {
-    const res = await apiGet('/api/health')
-    connectionOk.value = (res.status === 'ok')
-  } catch (e) { connectionOk.value = false }
+  try { const res = await apiGet('/api/health'); connectionOk.value = (res.status === 'ok') }
+  catch { connectionOk.value = false }
 }
 
 let globalInterval = null
-onMounted(() => {
-  loadGlobals()
-  checkConnection()
-  globalInterval = setInterval(() => {
-    loadGlobals()
-    checkConnection()
-  }, 10000)
-})
+onMounted(() => { loadGlobals(); checkConnection(); globalInterval = setInterval(() => { loadGlobals(); checkConnection() }, 10000) })
 onUnmounted(() => clearInterval(globalInterval))
 
 const tabs = [
   { label: '🏠', key: 'home', name: 'Home' },
   { label: '📡', key: 'scanner', name: 'Scanner' },
   { label: '🎰', key: 'slots', name: 'Slots' },
-  { label: '📈', key: 'chart', name: 'Chart' },    // << added
+  { label: '📈', key: 'chart', name: 'Chart' },
   { label: '📋', key: 'trades', name: 'Trades' },
   { label: '⚙️', key: 'settings', name: 'Settings' }
 ]
@@ -92,16 +83,28 @@ const tabs = [
     </header>
 
     <main>
-      <!-- Keep all tabs alive, show active -->
       <div v-show="currentTab === 'home'"><HomeView /></div>
       <div v-show="currentTab === 'scanner'"><ScannerView /></div>
+
+      <!-- Slots tab with sub‑navigation -->
       <div v-show="currentTab === 'slots'" class="tab-content">
-        <SlotCard v-for="(data, sym) in slots" :key="sym" :symbol="sym" :initial-data="data" />
+        <select v-model="selectedSymbol" class="symbol-select">
+          <option v-for="(_, sym) in slots" :key="sym" :value="sym">{{ sym.split(':')[0] }}</option>
+        </select>
+        <div class="sub-tabs">
+          <button @click="slotSubTab='cards'"  :class="{ active: slotSubTab==='cards' }">Cards</button>
+          <button @click="slotSubTab='ladder'" :class="{ active: slotSubTab==='ladder' }">Depth</button>
+          <button @click="slotSubTab='orders'" :class="{ active: slotSubTab==='orders' }">Orders</button>
+        </div>
+        <div v-if="slotSubTab==='cards'">
+          <SlotCard v-for="(data, sym) in slots" :key="sym" :symbol="sym" :initial-data="data" />
+        </div>
+        <LadderVisual v-if="slotSubTab==='ladder'" :symbol="selectedSymbol" />
+        <OrderList v-if="slotSubTab==='orders'" :symbol="selectedSymbol" />
       </div>
+
+      <div v-show="currentTab === 'chart'"><ChartView /></div>
       <div v-show="currentTab === 'trades'"><TradeHistory /></div>
-      <div v-show="currentTab === 'chart'">
-        <ChartView />
-      </div>      
       <div v-show="currentTab === 'settings'"><SettingsView :symbols="slots" /></div>
     </main>
 
@@ -109,9 +112,7 @@ const tabs = [
       <button v-for="tab in tabs" :key="tab.key"
               @click="currentTab = tab.key"
               :class="{ active: currentTab === tab.key }"
-              :title="tab.name">
-        {{ tab.label }}
-      </button>
+              :title="tab.name">{{ tab.label }}</button>
     </nav>
 
     <BottomControls />
@@ -149,4 +150,8 @@ main { flex:1; padding:12px; overflow-y:auto; }
   cursor:pointer; opacity:0.6; transition:0.2s;
 }
 .bottom-bar button.active { opacity:1; color:var(--accent); }
+.symbol-select { width:100%; padding:8px; background:var(--card); color:var(--text); border:none; border-radius:8px; margin-bottom:12px; }
+.sub-tabs { display:flex; gap:8px; margin-bottom:12px; }
+.sub-tabs button { flex:1; padding:8px; border:none; border-radius:6px; background:var(--card); color:var(--text); cursor:pointer; font-weight:600; font-size:12px; }
+.sub-tabs button.active { background:var(--accent); color:#000; }
 </style>
