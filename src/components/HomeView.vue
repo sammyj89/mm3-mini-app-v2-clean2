@@ -11,7 +11,6 @@ const loading = ref(true)
 const canvas = ref(null)
 let chart = null
 
-// Performance stats – also used for All‑Time
 const stats = ref({
   winRate: 0,
   avgWin: 0,
@@ -47,7 +46,6 @@ async function loadSummary() {
     }
   } catch (e) { console.error(e) }
 
-  // Daily P&L from exchange trades
   try {
     const tradesRes = await apiGet('/api/trades_exchange')
     if (tradesRes.success && tradesRes.data) {
@@ -60,7 +58,24 @@ async function loadSummary() {
   loading.value = false
 }
 
-async function loadMiniChart() { /* unchanged */ }
+async function loadMiniChart() {
+  try {
+    const res = await apiGet('/api/trades_exchange')
+    const trades = (res.data || []).slice(-50)
+    const labels = []; const data = []; let cum = 0
+    ;[...trades].reverse().forEach(t => {
+      cum += t.pnl || 0
+      labels.push('')
+      data.push(cum)
+    })
+    if (chart) chart.destroy()
+    chart = new Chart(canvas.value, {
+      type: 'line',
+      data: { labels, datasets: [{ data, borderColor: '#00d4ff', tension:0.1, pointRadius:0, borderWidth:2 }] },
+      options: { plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { display: false, beginAtZero: true } }, responsive: true, maintainAspectRatio: false }
+    })
+  } catch (e) {}
+}
 
 async function computeStats() {
   try {
@@ -95,13 +110,18 @@ onMounted(() => {
 onUnmounted(() => clearInterval(interval))
 
 const totalExposure = () => positions.value.reduce((sum, p) => sum + p.notional, 0)
-const bestPerformer = () => { /* unchanged */ }
-const worstPerformer = () => { /* unchanged */ }
+const bestPerformer = () => {
+  const sorted = [...positions.value].sort((a, b) => b.pnl - a.pnl)
+  return sorted[0] || null
+}
+const worstPerformer = () => {
+  const sorted = [...positions.value].sort((a, b) => a.pnl - b.pnl)
+  return sorted[0] || null
+}
 </script>
 
 <template>
   <div class="home-tab">
-    <!-- unchanged summary card -->
     <div class="card summary-card">
       <h3>💰 Account Summary</h3>
       <div class="summary-metrics">
@@ -121,7 +141,14 @@ const worstPerformer = () => { /* unchanged */ }
 
     <div class="card positions-card">
       <h3>📌 Open Positions</h3>
-      <!-- unchanged -->
+      <div v-if="loading"><SkeletonCard /></div>
+      <div v-else-if="positions.length === 0">😴 No open positions.</div>
+      <div v-for="pos in positions" :key="pos.symbol" class="position-row">
+        <span class="symbol">{{ pos.symbol }}</span>
+        <span class="side" :class="pos.side === 'short' ? 'red' : 'green'">{{ pos.side }}</span>
+        <span class="notional">${{ pos.notional.toFixed(2) }}</span>
+        <span class="pnl" :class="pos.pnl >= 0 ? 'green' : 'red'">${{ pos.pnl.toFixed(2) }}</span>
+      </div>
     </div>
 
     <div class="card summary-card">
@@ -158,7 +185,8 @@ h3 { color: #00d4ff; font-size: 14px; margin-bottom: 10px; text-transform: upper
 .metric { display: flex; flex-direction: column; }
 .label { font-size: 10px; color: #8888aa; text-transform: uppercase; }
 .value { font-size: 20px; font-weight: bold; font-family: monospace; }
-.green { color: #00ff88; } .red { color: #ff4757; }
+.green { color: #00ff88; }
+.red { color: #ff4757; }
 .mini-chart { height: 80px; margin-top: 12px; }
 .position-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #2a2a4a; font-size: 13px; }
 .symbol { font-weight: bold; min-width: 80px; }
