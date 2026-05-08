@@ -1,7 +1,8 @@
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { apiGet } from '../services/api'
 import Chart from 'chart.js/auto'
+import SkeletonCard from './SkeletonCard.vue'
 
 const equity = ref(0)
 const dailyPnl = ref(0)
@@ -35,6 +36,19 @@ async function loadSummary() {
       })
     }
   } catch (e) { console.error(e) }
+
+  // Get today's P&L from exchange trades (same source as Trades tab)
+  try {
+    const tradesRes = await apiGet('/api/trades_exchange')
+    if (tradesRes.success && tradesRes.data) {
+      const oneDayAgo = Date.now() / 1000 - 86400
+      const todayTrades = tradesRes.data.filter(t => t.ts > oneDayAgo)
+      dailyPnl.value = todayTrades.reduce((sum, t) => sum + (t.pnl || 0), 0)
+    }
+  } catch (e) {
+    console.error('daily pnl fetch error', e)
+  }
+
   loading.value = false
 }
 

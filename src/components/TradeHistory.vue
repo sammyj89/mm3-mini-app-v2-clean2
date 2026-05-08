@@ -17,7 +17,7 @@ const sortedTrades = computed(() => {
     if (valA > valB) return sortOrder.value === 'asc' ? 1 : -1
     return 0
   })
-  return sorted.slice(0, 20)
+  return sorted.slice(0, 50)
 })
 
 function toggleSort(key) {
@@ -27,6 +27,11 @@ function toggleSort(key) {
     sortKey.value = key
     sortOrder.value = 'desc'
   }
+}
+
+function formatTime(ts) {
+  const d = new Date(ts * 1000)
+  return d.toLocaleString('en-US', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })
 }
 
 let interval = null
@@ -43,6 +48,7 @@ onUnmounted(() => clearInterval(interval))
     <h3>📋 Recent Trades</h3>
     <table>
       <thead><tr>
+        <th @click="toggleSort('ts')">Time ▾</th>
         <th @click="toggleSort('symbol')">Symbol ▾</th>
         <th @click="toggleSort('side')">Side ▾</th>
         <th @click="toggleSort('pnl')">P&L ▾</th>
@@ -50,6 +56,7 @@ onUnmounted(() => clearInterval(interval))
       </tr></thead>
       <tbody>
         <tr v-for="t in sortedTrades" :key="t.ts">
+          <td>{{ formatTime(t.ts) }}</td>
           <td>{{ t.symbol }}</td>
           <td>{{ t.side }}</td>
           <td :class="t.pnl >= 0 ? 'green' : 'red'">{{ t.pnl.toFixed(4) }}</td>
