@@ -20,7 +20,6 @@ async function loadSummary() {
       const firstKey = Object.keys(slots)[0]
       if (firstKey) {
         equity.value = slots[firstKey].equity || 0
-        dailyPnl.value = slots[firstKey].daily_pnl || 0
       }
       positions.value = Object.entries(slots).map(([sym, data]) => {
         const live = data.live || {}
@@ -32,12 +31,13 @@ async function loadSummary() {
         if (qty > 0 && avg > 0 && mid > 0) {
           pnl = side === 'short' ? (avg - mid) * qty : (mid - avg) * qty
         }
-        return { symbol: sym.split(':')[0], side, qty, pnl }
+        const notional = qty * mid
+        return { symbol: sym.split(':')[0], side, qty, pnl, mid, notional }
       })
     }
   } catch (e) { console.error(e) }
 
-  // Get today's P&L from exchange trades (same source as Trades tab)
+  // Daily P&L from exchange trades
   try {
     const tradesRes = await apiGet('/api/trades_exchange')
     if (tradesRes.success && tradesRes.data) {
@@ -45,9 +45,7 @@ async function loadSummary() {
       const todayTrades = tradesRes.data.filter(t => t.ts > oneDayAgo)
       dailyPnl.value = todayTrades.reduce((sum, t) => sum + (t.pnl || 0), 0)
     }
-  } catch (e) {
-    console.error('daily pnl fetch error', e)
-  }
+  } catch (e) { console.error('daily pnl fetch error', e) }
 
   loading.value = false
 }
@@ -56,9 +54,7 @@ async function loadMiniChart() {
   try {
     const res = await apiGet('/api/trades_exchange')
     const trades = (res.data || []).slice(-50)
-    const labels = []
-    const data = []
-    let cum = 0
+    const labels = []; const data = []; let cum = 0
     ;[...trades].reverse().forEach(t => {
       cum += t.pnl || 0
       labels.push('')
@@ -83,6 +79,17 @@ onMounted(() => {
   }, 30000)
 })
 onUnmounted(() => clearInterval(interval))
+
+// computed stats for summary card
+const totalExposure = () => positions.value.reduce((sum, p) => sum + p.notional, 0)
+const bestPerformer = () => {
+  const sorted = [...positions.value].sort((a, b) => b.pnl - a.pnl)
+  return sorted[0] || null
+}
+const worstPerformer = () => {
+  const sorted = [...positions.value].sort((a, b) => a.pnl - b.pnl)
+  return sorted[0] || null
+}
 </script>
 
 <template>
@@ -111,15 +118,33 @@ onUnmounted(() => clearInterval(interval))
       <div v-for="pos in positions" :key="pos.symbol" class="position-row">
         <span class="symbol">{{ pos.symbol }}</span>
         <span class="side" :class="pos.side === 'short' ? 'red' : 'green'">{{ pos.side }}</span>
-        <span class="qty">{{ pos.qty.toFixed(4) }}</span>
+        <span class="notional">${{ pos.notional.toFixed(2) }}</span>
         <span class="pnl" :class="pos.pnl >= 0 ? 'green' : 'red'">${{ pos.pnl.toFixed(2) }}</span>
       </div>
     </div>
 
-    <div class="card">
-      <h3>📅 Today's Summary</h3>
-      <p v-if="dailyPnl >= 0">✅ You're up today. Keep it going!</p>
-      <p v-else>⚠️ Currently in the red. Review your positions.</p>
+    <div class="card summary-card">
+      <h3>📊 Today's Stats</h3>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <span class="stat-label">Positions</span>
+          <span class="stat-value">{{ positions.length }}</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Total Exposure</span>
+          <span class="stat-value">${{ totalExposure().toFixed(2) }}</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Best Performer</span>
+          <span class="stat-value green" v-if="bestPerformer()">{{ bestPerformer().symbol }} ${{ bestPerformer().pnl.toFixed(2) }}</span>
+          <span v-else>—</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Worst Performer</span>
+          <span class="stat-value red" v-if="worstPerformer()">{{ worstPerformer().symbol }} ${{ worstPerformer().pnl.toFixed(2) }}</span>
+          <span v-else>—</span>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -137,6 +162,10 @@ h3 { color: #00d4ff; font-size: 14px; margin-bottom: 10px; text-transform: upper
 .position-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #2a2a4a; font-size: 13px; }
 .symbol { font-weight: bold; min-width: 80px; }
 .side { text-transform: uppercase; min-width: 50px; }
-.qty { font-family: monospace; margin-left: auto; margin-right: 10px; }
+.notional { font-family: monospace; margin-left: auto; margin-right: 10px; }
 .pnl { font-family: monospace; }
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.stat-item { display: flex; flex-direction: column; }
+.stat-label { font-size: 10px; color: #8888aa; text-transform: uppercase; }
+.stat-value { font-size: 14px; font-weight: bold; font-family: monospace; }
 </style>
