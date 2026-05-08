@@ -9,7 +9,7 @@ const scanning = ref(false)
 const picks = ref([])
 const statusMsg = ref('')
 const lastScanTimestamp = ref(null)
-const maxSlots = ref(3)   // will be fetched from API
+const maxSlots = ref(3)
 
 const timeAgo = computed(() => {
   const ts = lastScanTimestamp.value
@@ -22,24 +22,37 @@ const timeAgo = computed(() => {
   return `${hr}h ago`
 })
 
+// Add position details to each slot for display
+const slotDetails = computed(() => {
+  const result = {}
+  for (const [sym, data] of Object.entries(slots.value || {})) {
+    const live = data.live || {}
+    const netQty = Math.abs(live.net_qty || 0)
+    const mid = live.mid || 0
+    const notional = netQty * mid
+    let pnl = 0
+    const avg = live.avg_entry || 0
+    if (netQty > 0 && avg > 0 && mid > 0) {
+      const side = live.side || 'short'
+      pnl = side === 'short' ? (avg - mid) * netQty : (mid - avg) * netQty
+    }
+    result[sym] = { netQty, mid, notional, pnl, side: live.side }
+  }
+  return result
+})
+
 async function loadConfig() {
   try {
     const res = await apiGet('/api/config', { key: 'MM_MAX_SLOTS' })
-    if (res.success && res.value) {
-      maxSlots.value = parseInt(res.value, 10) || 3
-    }
+    if (res.success && res.value) maxSlots.value = parseInt(res.value, 10) || 3
   } catch (e) { /* keep default */ }
 }
 
 async function loadSlots() {
   try {
     const res = await apiGet('/api/status_all')
-    if (res.success && res.data) {
-      slots.value = { ...res.data }
-    }
-  } catch (e) {
-    console.error('loadSlots error', e)
-  }
+    if (res.success && res.data) slots.value = { ...res.data }
+  } catch (e) { console.error('loadSlots error', e) }
 }
 
 async function fetchExistingPicks() {
@@ -56,31 +69,25 @@ async function fetchExistingPicks() {
   } catch (e) { /* ignore */ }
 }
 
-// ── Polling set up ──
 let refreshInterval = null
 let timeAgoInterval = null
-
 onMounted(() => {
   loadConfig()
   loadSlots()
   fetchExistingPicks()
-
   refreshInterval = setInterval(() => {
     loadSlots()
     fetchExistingPicks()
-  }, 15_000)
-
+  }, 15000)
   timeAgoInterval = setInterval(() => {
     lastScanTimestamp.value = lastScanTimestamp.value
-  }, 1_000)
+  }, 1000)
 })
-
 onUnmounted(() => {
   clearInterval(refreshInterval)
   clearInterval(timeAgoInterval)
 })
 
-// ── Run the scanner ──
 async function runScanner() {
   scanning.value = true
   statusMsg.value = 'Scanning…'
@@ -114,7 +121,6 @@ async function runScanner() {
   postEvent('web_app_trigger_haptic_feedback', { type: 'impact', impact_style: 'medium' })
 }
 
-// ── Execute the rotation ──
 async function replaceSlot(newSymbol) {
   if (!selectedSlot.value) {
     statusMsg.value = 'Please select a current slot to replace.'
@@ -134,7 +140,6 @@ async function replaceSlot(newSymbol) {
   }
 }
 
-// ── Quick add a new slot ──
 async function addSlot(newSymbol) {
   if (Object.keys(slots.value).length >= maxSlots.value) {
     statusMsg.value = `All ${maxSlots.value} slots are full – replace one first.`
@@ -159,13 +164,17 @@ async function addSlot(newSymbol) {
   <div class="scanner-tab">
     <!-- Current Slots (select which to replace) -->
     <div class="card">
-      <h3>🎯 Current Slots</h3>
+      <h3>🎯 Replace a Slot</h3>
       <div v-if="Object.keys(slots).length">
         <div v-for="(data, sym) in slots" :key="sym" class="slot-option">
           <label>
             <input type="radio" v-model="selectedSlot" :value="sym" />
             <strong>{{ sym.split(':')[0] }}</strong>
             <span class="pos">{{ (data.live?.net_qty ? data.live.side + ' ' + Math.abs(data.live.net_qty).toFixed(4) : 'FLAT') }}</span>
+            <span v-if="slotDetails[sym]?.notional > 0" class="notional">${{ slotDetails[sym].notional.toFixed(2) }}</span>
+            <span v-if="slotDetails[sym]?.pnl !== 0" class="pnl" :class="slotDetails[sym].pnl >= 0 ? 'green' : 'red'">
+              ${{ slotDetails[sym].pnl.toFixed(2) }}
+            </span>
           </label>
         </div>
       </div>
@@ -246,6 +255,17 @@ h3 {
   font-family: monospace;
   font-size: 12px;
 }
+.notional {
+  font-family: monospace;
+  font-size: 12px;
+  color: #e0e0e0;
+}
+.pnl {
+  font-family: monospace;
+  font-size: 12px;
+}
+.green { color: #00ff88; }
+.red   { color: #ff4757; }
 .btn {
   width: 100%;
   padding: 12px;
