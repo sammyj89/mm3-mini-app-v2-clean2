@@ -12,6 +12,15 @@ const hwmStartR = ref(0.8)
 const pnlStartUsd = ref(1.0)
 const saving = ref(false)
 const message = ref('')
+const selectedSymbol = ref('')
+const resetLoading = ref(false)
+
+// Initialise selectedSymbol from available slots
+const initSymbol = () => {
+  const keys = Object.keys(props.symbols || {})
+  if (keys.length && !selectedSymbol.value) selectedSymbol.value = keys[0]
+}
+initSymbol()
 
 async function loadSettings() {
   try {
@@ -29,9 +38,7 @@ async function loadSettings() {
     pnlTrailEnabled.value = pnlRes.value === 'true'
     hwmStartR.value = parseFloat(rRes.value || '0.8')
     pnlStartUsd.value = parseFloat(usdRes.value || '1.0')
-  } catch (e) {
-    console.error(e)
-  }
+  } catch (e) { console.error(e) }
 }
 
 onMounted(loadSettings)
@@ -49,45 +56,77 @@ async function saveSettings() {
       apiPost('/api/config', { key: 'PNL_START_USD', value: String(pnlStartUsd.value) }),
     ])
     message.value = '✅ Settings saved'
-  } catch (e) {
-    message.value = '❌ Save failed: ' + e.message
-  }
+  } catch (e) { message.value = '❌ Save failed: ' + e.message }
   saving.value = false
+}
+
+// Ladder reset functions
+async function resetAll() {
+  if (!selectedSymbol.value) return
+  resetLoading.value = true
+  try {
+    await apiPost('/api/ladder/reset', { symbol: selectedSymbol.value })
+    message.value = '✅ Ladder reset (all)'
+  } catch (e) { message.value = '❌ Reset failed' }
+  resetLoading.value = false
+}
+
+async function resetRemaining() {
+  if (!selectedSymbol.value) return
+  resetLoading.value = true
+  try {
+    await apiPost('/api/ladder/reset', { symbol: selectedSymbol.value, mode: 'remaining' })
+    message.value = '✅ Remaining levels re‑anchored'
+  } catch (e) { message.value = '❌ Reset failed' }
+  resetLoading.value = false
 }
 </script>
 
 <template>
   <div class="settings-tab">
+    <!-- Slot Configuration -->
     <div class="card">
       <h3>⚙️ Slot Configuration</h3>
       <div class="setting-row">
-        <label title="How many simultaneous pairs the bot can trade (1‑5). Changes take effect after saving and apply to new slots.">Max active slots</label>
+        <label title="How many simultaneous pairs the bot can trade (1‑5).">Max active slots</label>
         <input type="number" v-model.number="maxSlots" min="1" max="5" class="input" />
       </div>
       <p class="hint">Currently {{ Object.keys(symbols || {}).length }} slots active.</p>
     </div>
 
+    <!-- Ladder settings -->
     <div class="card">
       <h3>🪜 Ladder</h3>
       <div class="setting-row">
-        <label title="Scales the distance between sell levels. 1.0 = default, 2.0 = twice as far apart.">Spacing multiplier: <strong>{{ ladderSpacing.toFixed(1) }}x</strong></label>
+        <label title="Scales the distance between sell levels.">Spacing: <strong>{{ ladderSpacing.toFixed(1) }}x</strong></label>
         <input type="range" v-model.number="ladderSpacing" min="0.5" max="3.0" step="0.1" />
+      </div>
+      <div class="reset-section">
+        <label>Reset ladder for:</label>
+        <select v-model="selectedSymbol" class="symbol-select">
+          <option v-for="(_, sym) in symbols" :key="sym" :value="sym">{{ sym.split(':')[0] }}</option>
+        </select>
+        <div class="btn-row">
+          <button class="btn" @click="resetAll" :disabled="resetLoading">🔄 Reset All</button>
+          <button class="btn" @click="resetRemaining" :disabled="resetLoading">📊 Reset Remaining</button>
+        </div>
       </div>
     </div>
 
+    <!-- Trail settings -->
     <div class="card">
       <h3>🛡️ Trail</h3>
       <div class="toggle-row">
-        <button :class="['btn', hwmEnabled ? 'active' : '']" @click="hwmEnabled = !hwmEnabled" title="High Water Mark trailing stop that moves up with profit.">HWM: {{ hwmEnabled ? 'ON' : 'OFF' }}</button>
-        <button :class="['btn', pnlTrailEnabled ? 'active' : '']" @click="pnlTrailEnabled = !pnlTrailEnabled" title="PnL‑based trailing stop that tightens after a dollar profit target.">PnL: {{ pnlTrailEnabled ? 'ON' : 'OFF' }}</button>
+        <button :class="['btn', hwmEnabled ? 'active' : '']" @click="hwmEnabled = !hwmEnabled" title="High Water Mark trailing stop.">HWM: {{ hwmEnabled ? 'ON' : 'OFF' }}</button>
+        <button :class="['btn', pnlTrailEnabled ? 'active' : '']" @click="pnlTrailEnabled = !pnlTrailEnabled" title="PnL‑based trailing stop.">PnL: {{ pnlTrailEnabled ? 'ON' : 'OFF' }}</button>
       </div>
       <div class="metrics">
         <div>
-          <label class="metric-label" title="R‑multiple where HWM trailing starts (e.g., 0.8 = 80% of initial stop distance).">HWM start R</label>
+          <label class="metric-label" title="R‑multiple where HWM trailing starts.">HWM start R</label>
           <input type="number" v-model.number="hwmStartR" step="0.1" class="input" />
         </div>
         <div>
-          <label class="metric-label" title="Minimum profit in USDT before PnL trailing activates.">PnL start $</label>
+          <label class="metric-label" title="Minimum profit before PnL trailing activates.">PnL start $</label>
           <input type="number" v-model.number="pnlStartUsd" step="0.25" class="input" />
         </div>
       </div>
@@ -112,6 +151,11 @@ input[type="range"] { flex: 1; accent-color: #00d4ff; }
 .btn.active { background: #00ff88; color: #000; }
 .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
 .metric-label { font-size: 10px; color: #8888aa; text-transform: uppercase; display: block; margin-bottom: 4px; }
-.save-btn { width: 100%; background: #00d4ff; color: #000; }
+.save-btn { width: 100%; background: #00d4ff; color: #000; margin-bottom: 12px; }
 .message { text-align: center; margin-top: 10px; color: #00ff88; font-family: monospace; }
+.reset-section { margin-top: 12px; }
+.reset-section label { color: #e0e0e0; font-size: 13px; margin-right: 8px; }
+.symbol-select { width: 100%; padding: 8px; background: var(--card, #16213e); color: #e0e0e0; border: none; border-radius: 8px; margin: 8px 0; }
+.btn-row { display: flex; gap: 8px; }
+.btn-row .btn { flex: 1; }
 </style>
