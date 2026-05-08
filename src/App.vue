@@ -69,6 +69,7 @@ const tabs = [
   { label: '🏠', key: 'home', name: 'Home' },
   { label: '📡', key: 'scanner', name: 'Scanner' },
   { label: '🎰', key: 'slots', name: 'Slots' },
+  { label: '📈', key: 'chart', name: 'Chart' },    // << added
   { label: '📋', key: 'trades', name: 'Trades' },
   { label: '⚙️', key: 'settings', name: 'Settings' }
 ]
@@ -98,6 +99,9 @@ const tabs = [
         <SlotCard v-for="(data, sym) in slots" :key="sym" :symbol="sym" :initial-data="data" />
       </div>
       <div v-show="currentTab === 'trades'"><TradeHistory /></div>
+      <div v-show="currentTab === 'chart'">
+        <ChartView />
+      </div>      
       <div v-show="currentTab === 'settings'"><SettingsView :symbols="slots" /></div>
     </main>
 
