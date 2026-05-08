@@ -22,30 +22,24 @@ const timeAgo = computed(() => {
   return `${hr}h ago`
 })
 
-// Add position details to each slot for display
-const slotDetails = computed(() => {
-  const result = {}
-  for (const [sym, data] of Object.entries(slots.value || {})) {
-    const live = data.live || {}
-    const netQty = Math.abs(live.net_qty || 0)
-    const mid = live.mid || 0
-    const notional = netQty * mid
-    let pnl = 0
-    const avg = live.avg_entry || 0
-    if (netQty > 0 && avg > 0 && mid > 0) {
-      const side = live.side || 'short'
-      pnl = side === 'short' ? (avg - mid) * netQty : (mid - avg) * netQty
-    }
-    result[sym] = { netQty, mid, notional, pnl, side: live.side }
-  }
-  return result
-})
+/**
+ * Return a human‑friendly notional for a slot.
+ */
+function notionalDisplay(symData) {
+  const live = symData?.live || {}
+  const qty = Math.abs(live.net_qty || 0)
+  const mid = live.mid || 0
+  if (!qty || !mid) return 'FLAT'
+  const usd = qty * mid
+  if (usd >= 1000) return `$${(usd / 1000).toFixed(1)}k`
+  return `$${usd.toFixed(0)}`
+}
 
 async function loadConfig() {
   try {
     const res = await apiGet('/api/config', { key: 'MM_MAX_SLOTS' })
     if (res.success && res.value) maxSlots.value = parseInt(res.value, 10) || 3
-  } catch (e) { /* keep default */ }
+  } catch (e) { /* ignore */ }
 }
 
 async function loadSlots() {
@@ -69,25 +63,31 @@ async function fetchExistingPicks() {
   } catch (e) { /* ignore */ }
 }
 
+// ── Polling ──
 let refreshInterval = null
 let timeAgoInterval = null
+
 onMounted(() => {
   loadConfig()
   loadSlots()
   fetchExistingPicks()
+
   refreshInterval = setInterval(() => {
     loadSlots()
     fetchExistingPicks()
-  }, 15000)
+  }, 15_000)
+
   timeAgoInterval = setInterval(() => {
     lastScanTimestamp.value = lastScanTimestamp.value
-  }, 1000)
+  }, 1_000)
 })
+
 onUnmounted(() => {
   clearInterval(refreshInterval)
   clearInterval(timeAgoInterval)
 })
 
+// ── Run the scanner ──
 async function runScanner() {
   scanning.value = true
   statusMsg.value = 'Scanning…'
@@ -121,6 +121,7 @@ async function runScanner() {
   postEvent('web_app_trigger_haptic_feedback', { type: 'impact', impact_style: 'medium' })
 }
 
+// ── Rotation ──
 async function replaceSlot(newSymbol) {
   if (!selectedSlot.value) {
     statusMsg.value = 'Please select a current slot to replace.'
@@ -162,46 +163,34 @@ async function addSlot(newSymbol) {
 
 <template>
   <div class="scanner-tab">
-    <!-- Current Slots (select which to replace) -->
     <div class="card">
-      <h3>🎯 Replace a Slot</h3>
+      <h3>🎯 Current Slots</h3>
       <div v-if="Object.keys(slots).length">
         <div v-for="(data, sym) in slots" :key="sym" class="slot-option">
           <label>
             <input type="radio" v-model="selectedSlot" :value="sym" />
             <strong>{{ sym.split(':')[0] }}</strong>
-            <span class="pos">{{ (data.live?.net_qty ? data.live.side + ' ' + Math.abs(data.live.net_qty).toFixed(4) : 'FLAT') }}</span>
-            <span v-if="slotDetails[sym]?.notional > 0" class="notional">${{ slotDetails[sym].notional.toFixed(2) }}</span>
-            <span v-if="slotDetails[sym]?.pnl !== 0" class="pnl" :class="slotDetails[sym].pnl >= 0 ? 'green' : 'red'">
-              ${{ slotDetails[sym].pnl.toFixed(2) }}
-            </span>
+            <span class="notional">{{ notionalDisplay(data) }}</span>
           </label>
         </div>
       </div>
       <p v-else>No active slots – add a symbol first.</p>
     </div>
 
-    <!-- Scanner controls -->
     <div class="card">
       <h3>📡 Run Scanner</h3>
       <button class="btn scan-btn" @click="runScanner" :disabled="scanning">
         {{ scanning ? '⏳ Scanning…' : 'Start Scan' }}
       </button>
-      <p class="scan-freshness" v-if="lastScanTimestamp !== null">
-        Last scan: {{ timeAgo }}
-      </p>
-      <p class="scan-freshness" v-else>
-        No recent scan data.
-      </p>
+      <p class="scan-freshness" v-if="lastScanTimestamp !== null">Last scan: {{ timeAgo }}</p>
+      <p class="scan-freshness" v-else>No recent scan data.</p>
       <p class="status" v-if="statusMsg">{{ statusMsg }}</p>
     </div>
 
-    <!-- Empty state when no picks and not scanning -->
     <div v-if="picks.length === 0 && !scanning" class="card empty-state">
       📡 No scanner data yet – tap <strong>Start Scan</strong> to find today’s top movers.
     </div>
 
-    <!-- Scanner Results -->
     <div v-if="picks.length" class="card">
       <h3>🏆 Top Picks</h3>
       <div class="pick-list">
@@ -209,15 +198,11 @@ async function addSlot(newSymbol) {
           <div class="pick-info">
             <span class="symbol">{{ p.symbol.split(':')[0] }}</span>
             <span class="score">Score: {{ p.score.toFixed(2) }}</span>
-            <span class="rvol">RVOL: {{ p.rvol }}%</span>
+            <span class="rvol">RVOL: {{ Math.round(p.rvol) }}%</span>
           </div>
           <div class="pick-actions">
-            <button class="btn small" @click="replaceSlot(p.symbol)" :disabled="!selectedSlot">
-              🔄 Replace Selected Slot
-            </button>
-            <button class="btn small" @click="addSlot(p.symbol)" v-if="Object.keys(slots).length < maxSlots">
-              ➕ Add
-            </button>
+            <button class="btn small" @click="replaceSlot(p.symbol)" :disabled="!selectedSlot">🔄 Replace</button>
+            <button class="btn small" @click="addSlot(p.symbol)" v-if="Object.keys(slots).length < maxSlots">➕ Add</button>
           </div>
         </div>
       </div>
@@ -226,109 +211,22 @@ async function addSlot(newSymbol) {
 </template>
 
 <style scoped>
-.scanner-tab {
-  padding: 12px;
-}
-.card {
-  background: #16213e;
-  border-radius: 10px;
-  padding: 14px;
-  margin-bottom: 12px;
-}
-h3 {
-  color: #00d4ff;
-  font-size: 14px;
-  margin-bottom: 10px;
-  text-transform: uppercase;
-}
-.slot-option {
-  margin-bottom: 8px;
-}
-.slot-option label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #e0e0e0;
-}
-.pos {
-  margin-left: auto;
-  font-family: monospace;
-  font-size: 12px;
-}
-.notional {
-  font-family: monospace;
-  font-size: 12px;
-  color: #e0e0e0;
-}
-.pnl {
-  font-family: monospace;
-  font-size: 12px;
-}
-.green { color: #00ff88; }
-.red   { color: #ff4757; }
-.btn {
-  width: 100%;
-  padding: 12px;
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  color: #fff;
-  background: #3742fa;
-  margin-bottom: 6px;
-}
-.scan-btn {
-  background: #00d4ff;
-  color: #000;
-}
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.small {
-  padding: 8px 12px;
-  font-size: 12px;
-  width: auto;
-}
-.pick-item {
-  border-bottom: 1px solid #2a2a4a;
-  padding: 10px 0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-}
-.pick-info {
-  display: flex;
-  flex-direction: column;
-}
-.symbol {
-  font-size: 16px;
-  font-weight: bold;
-}
-.score, .rvol {
-  font-size: 10px;
-  color: #8888aa;
-}
-.pick-actions {
-  display: flex;
-  gap: 6px;
-  margin-top: 6px;
-}
-.status {
-  color: #ffa502;
-  font-size: 12px;
-  margin-top: 6px;
-}
-.scan-freshness {
-  font-size: 12px;
-  color: #aaa;
-  margin-top: 4px;
-}
-.empty-state {
-  text-align: center;
-  padding: 20px;
-  color: #aaa;
-}
+.scanner-tab { padding: 12px; }
+.card { background: #16213e; border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+h3 { color: #00d4ff; font-size: 14px; margin-bottom: 10px; text-transform: uppercase; }
+.slot-option { margin-bottom: 8px; }
+.slot-option label { display: flex; align-items: center; gap: 12px; color: #e0e0e0; }
+.notional { margin-left: auto; font-family: monospace; font-size: 13px; color: #00ff88; }
+.btn { width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; color: #fff; background: #3742fa; margin-bottom: 6px; }
+.scan-btn { background: #00d4ff; color: #000; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.small { padding: 8px 12px; font-size: 12px; width: auto; }
+.pick-item { border-bottom: 1px solid #2a2a4a; padding: 10px 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+.pick-info { display: flex; flex-direction: column; }
+.symbol { font-size: 16px; font-weight: bold; }
+.score, .rvol { font-size: 10px; color: #8888aa; }
+.pick-actions { display: flex; gap: 6px; margin-top: 6px; }
+.status { color: #ffa502; font-size: 12px; margin-top: 6px; }
+.scan-freshness { font-size: 12px; color: #aaa; margin-top: 4px; }
+.empty-state { text-align: center; padding: 20px; color: #aaa; }
 </style>
