@@ -5,6 +5,7 @@ import SlotCard from './components/SlotCard.vue'
 import LadderControl from './components/LadderControl.vue'
 import ScannerModal from './components/ScannerModal.vue'
 import TrailSettings from './components/TrailSettings.vue'
+import SettingsView from './components/SettingsView.vue'
 import TradeHistory from './components/TradeHistory.vue'
 import ChartView from './components/ChartView.vue'
 import ReleaseConfirm from './components/ReleaseConfirm.vue'
@@ -14,7 +15,7 @@ import { apiGet } from './services/api'
 
 const slots = ref({})
 const selectedSymbol = ref('')
-const currentTab = ref('home')   // ← start on Home
+const currentTab = ref('home')
 
 async function loadSlots() {
   const res = await apiGet('/api/status_all')
@@ -38,10 +39,9 @@ onMounted(loadSlots)
       <button @click="currentTab='home'"    :class="{ active: currentTab==='home' }">🏠 Home</button>
       <button @click="currentTab='scanner'" :class="{ active: currentTab==='scanner' }">📡 Scanner</button>
       <button @click="currentTab='slots'"   :class="{ active: currentTab==='slots' }">🎰 Slots</button>
-      <button @click="currentTab='ladder'"  :class="{ active: currentTab==='ladder' }">🪜 Ladder</button>
-      <button @click="currentTab='trail'"   :class="{ active: currentTab==='trail' }">🛡️ Trail</button>
-      <button @click="currentTab='trades'"  :class="{ active: currentTab==='trades' }">📋 Trades</button>
       <button @click="currentTab='chart'"   :class="{ active: currentTab==='chart' }">📈 Chart</button>
+      <button @click="currentTab='trades'"  :class="{ active: currentTab==='trades' }">📋 Trades</button>
+      <button @click="currentTab='settings'":class="{ active: currentTab==='settings' }">⚙️ Settings</button>
     </nav>
 
     <main>
@@ -57,26 +57,16 @@ onMounted(loadSlots)
         <ScannerView />
       </div>
 
-      <div v-if="currentTab === 'ladder'" class="tab-content">
-        <select v-model="selectedSymbol" class="symbol-select">
-          <option v-for="(_, sym) in slots" :key="sym" :value="sym">{{ sym.split(':')[0] }}</option>
-        </select>
-        <LadderControl :symbol="selectedSymbol" />
-      </div>
-
-      <div v-if="currentTab === 'trail'" class="tab-content">
-        <select v-model="selectedSymbol" class="symbol-select">
-          <option v-for="(_, sym) in slots" :key="sym" :value="sym">{{ sym.split(':')[0] }}</option>
-        </select>
-        <TrailSettings :symbol="selectedSymbol" />
+      <div v-if="currentTab === 'chart'" class="tab-content">
+        <ChartView />
       </div>
 
       <div v-if="currentTab === 'trades'" class="tab-content">
         <TradeHistory />
       </div>
 
-      <div v-if="currentTab === 'chart'" class="tab-content">
-        <ChartView />
+      <div v-if="currentTab === 'settings'" class="tab-content">
+        <SettingsView :symbols="slots" />
       </div>
     </main>
 
