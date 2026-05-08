@@ -9,6 +9,7 @@ const scanning = ref(false)
 const picks = ref([])
 const statusMsg = ref('')
 const lastScanTimestamp = ref(null)
+const maxSlots = ref(3)   // will be fetched from API
 
 const timeAgo = computed(() => {
   const ts = lastScanTimestamp.value
@@ -20,6 +21,15 @@ const timeAgo = computed(() => {
   const hr = Math.floor(min / 60)
   return `${hr}h ago`
 })
+
+async function loadConfig() {
+  try {
+    const res = await apiGet('/api/config', { key: 'MM_MAX_SLOTS' })
+    if (res.success && res.value) {
+      maxSlots.value = parseInt(res.value, 10) || 3
+    }
+  } catch (e) { /* keep default */ }
+}
 
 async function loadSlots() {
   try {
@@ -51,16 +61,15 @@ let refreshInterval = null
 let timeAgoInterval = null
 
 onMounted(() => {
+  loadConfig()
   loadSlots()
   fetchExistingPicks()
 
-  // Refresh data every 15 seconds
   refreshInterval = setInterval(() => {
     loadSlots()
     fetchExistingPicks()
   }, 15_000)
 
-  // Force "time ago" to update every second
   timeAgoInterval = setInterval(() => {
     lastScanTimestamp.value = lastScanTimestamp.value
   }, 1_000)
@@ -78,7 +87,6 @@ async function runScanner() {
   try {
     const res = await apiPost('/api/run_screener')
     if (res.success && res.data) {
-      // data can be an array (old format) or an object with "picks" (new format)
       let picksList = []
       let timestamp = null
       if (Array.isArray(res.data)) {
@@ -128,8 +136,8 @@ async function replaceSlot(newSymbol) {
 
 // ── Quick add a new slot ──
 async function addSlot(newSymbol) {
-  if (Object.keys(slots.value).length >= 3) {
-    statusMsg.value = 'All 3 slots are full – replace one first.'
+  if (Object.keys(slots.value).length >= maxSlots.value) {
+    statusMsg.value = `All ${maxSlots.value} slots are full – replace one first.`
     return
   }
   statusMsg.value = 'Adding…'
@@ -198,7 +206,7 @@ async function addSlot(newSymbol) {
             <button class="btn small" @click="replaceSlot(p.symbol)" :disabled="!selectedSlot">
               🔄 Replace Selected Slot
             </button>
-            <button class="btn small" @click="addSlot(p.symbol)" v-if="Object.keys(slots).length < 3">
+            <button class="btn small" @click="addSlot(p.symbol)" v-if="Object.keys(slots).length < maxSlots">
               ➕ Add
             </button>
           </div>
