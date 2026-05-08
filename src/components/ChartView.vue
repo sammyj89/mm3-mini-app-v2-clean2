@@ -32,7 +32,9 @@ async function loadChart() {
   const days = timeRanges[timeRange.value] || 7
   const cutoff = now - days * 86400
 
-  const filtered = trades.filter(t => t.ts > cutoff).reverse()
+  const filtered = trades
+  .filter(t => t.ts > cutoff)
+  .sort((a, b) => (a.ts || 0) - (b.ts || 0))   // oldest first for left‑to‑right
 
   if (chart) chart.destroy()
 
