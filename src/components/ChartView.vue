@@ -14,6 +14,8 @@ const timeRanges = {
   '30d': 30
 }
 
+const filteredTrades = ref([]) // store for tooltip
+
 async function loadChart() {
   const res = await apiGet('/api/trades_exchange')
   const trades = res.data || []
@@ -22,6 +24,8 @@ async function loadChart() {
   const cutoff = now - days * 86400
 
   const filtered = trades.filter(t => t.ts > cutoff).reverse()
+  filteredTrades.value = filtered
+
   const labels = []; const data = []; let cum = 0
   filtered.forEach(t => {
     cum += t.pnl || 0
@@ -32,7 +36,20 @@ async function loadChart() {
   chart = new Chart(canvas.value, {
     type: 'line',
     data: { labels, datasets: [{ label:'Cum. P&L', data, borderColor:'#00d4ff', tension:0.1, pointRadius:1, borderWidth:2 }] },
-    options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    options: {
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const trade = filteredTrades.value[ctx.dataIndex]
+              return trade ? `${trade.symbol} ${trade.side} PnL: $${trade.pnl.toFixed(2)}` : ''
+            }
+          }
+        }
+      },
+      scales: { y: { beginAtZero: true } }
+    }
   })
 }
 

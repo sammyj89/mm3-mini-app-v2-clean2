@@ -3,6 +3,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { apiGet } from '../services/api'
 import Chart from 'chart.js/auto'
 import SkeletonCard from './SkeletonCard.vue'
+import { useAnimatedNumber } from '../composables/useAnimatedNumber'
 
 const equity = ref(0)
 const dailyPnl = ref(0)
@@ -10,6 +11,13 @@ const positions = ref([])
 const loading = ref(true)
 const canvas = ref(null)
 let chart = null
+
+// Animated display values
+const animatedEquity = useAnimatedNumber(equity)
+const animatedDailyPnl = useAnimatedNumber(dailyPnl)
+
+// Performance stats
+const stats = ref({ winRate: 0, avgWin: 0, avgLoss: 0, profitFactor: '∞' })
 
 async function loadSummary() {
   loading.value = true
@@ -69,18 +77,36 @@ async function loadMiniChart() {
   } catch (e) {}
 }
 
+async function computeStats() {
+  try {
+    const res = await apiGet('/api/trades_exchange')
+    const trades = res.data || []
+    const wins = trades.filter(t => t.pnl > 0)
+    const losses = trades.filter(t => t.pnl < 0)
+    const totalWins = wins.reduce((s, t) => s + t.pnl, 0)
+    const totalLosses = Math.abs(losses.reduce((s, t) => s + t.pnl, 0))
+    stats.value = {
+      winRate: trades.length ? ((wins.length / trades.length) * 100).toFixed(1) : 0,
+      avgWin: wins.length ? (totalWins / wins.length).toFixed(2) : 0,
+      avgLoss: losses.length ? (totalLosses / losses.length).toFixed(2) : 0,
+      profitFactor: totalLosses ? (totalWins / totalLosses).toFixed(2) : '∞'
+    }
+  } catch (e) {}
+}
+
 let interval = null
 onMounted(() => {
   loadSummary()
   loadMiniChart()
+  computeStats()
   interval = setInterval(() => {
     loadSummary()
     loadMiniChart()
+    computeStats()
   }, 30000)
 })
 onUnmounted(() => clearInterval(interval))
 
-// computed stats for summary card
 const totalExposure = () => positions.value.reduce((sum, p) => sum + p.notional, 0)
 const bestPerformer = () => {
   const sorted = [...positions.value].sort((a, b) => b.pnl - a.pnl)
@@ -99,12 +125,12 @@ const worstPerformer = () => {
       <div class="summary-metrics">
         <div class="metric">
           <span class="label">Equity</span>
-          <span class="value">${{ Number(equity).toFixed(2) }}</span>
+          <span class="value">${{ animatedEquity }}</span>
         </div>
         <div class="metric">
           <span class="label">Today's P&amp;L</span>
           <span class="value" :class="dailyPnl >= 0 ? 'green' : 'red'">
-            {{ dailyPnl >= 0 ? '+' : '' }}${{ Number(dailyPnl).toFixed(2) }}
+            {{ dailyPnl >= 0 ? '+' : '' }}${{ animatedDailyPnl }}
           </span>
         </div>
       </div>
@@ -124,25 +150,23 @@ const worstPerformer = () => {
     </div>
 
     <div class="card summary-card">
-      <h3>📊 Today's Stats</h3>
+      <h3>📊 Performance</h3>
       <div class="stats-grid">
         <div class="stat-item">
-          <span class="stat-label">Positions</span>
-          <span class="stat-value">{{ positions.length }}</span>
+          <span class="stat-label">Win Rate</span>
+          <span class="stat-value">{{ stats.winRate }}%</span>
         </div>
         <div class="stat-item">
-          <span class="stat-label">Total Exposure</span>
-          <span class="stat-value">${{ totalExposure().toFixed(2) }}</span>
+          <span class="stat-label">Avg Win</span>
+          <span class="stat-value green">${{ stats.avgWin }}</span>
         </div>
         <div class="stat-item">
-          <span class="stat-label">Best Performer</span>
-          <span class="stat-value green" v-if="bestPerformer()">{{ bestPerformer().symbol }} ${{ bestPerformer().pnl.toFixed(2) }}</span>
-          <span v-else>—</span>
+          <span class="stat-label">Avg Loss</span>
+          <span class="stat-value red">${{ stats.avgLoss }}</span>
         </div>
         <div class="stat-item">
-          <span class="stat-label">Worst Performer</span>
-          <span class="stat-value red" v-if="worstPerformer()">{{ worstPerformer().symbol }} ${{ worstPerformer().pnl.toFixed(2) }}</span>
-          <span v-else>—</span>
+          <span class="stat-label">Profit Factor</span>
+          <span class="stat-value">{{ stats.profitFactor }}</span>
         </div>
       </div>
     </div>
