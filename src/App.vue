@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import HomeView from './components/HomeView.vue'
 import SlotCard from './components/SlotCard.vue'
 import LadderVisual from './components/LadderVisual.vue'
@@ -13,7 +13,8 @@ import { apiGet } from './services/api'
 
 const slots = ref({})
 const selectedSymbol = ref('')
-const currentTab = ref('home')
+const currentTab = ref(localStorage.getItem('mm3_activeTab') || 'home')
+watch(currentTab, (val) => localStorage.setItem('mm3_activeTab', val))
 const slotSubTab = ref('cards')        // 'cards' | 'ladder' | 'orders'
 const equity = ref(0)
 const dailyPnl = ref(0)
