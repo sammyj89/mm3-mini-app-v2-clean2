@@ -23,16 +23,26 @@ const timeAgo = computed(() => {
 })
 
 /**
- * Return a human‑friendly notional for a slot.
+ * Return notional (USD) and current PnL for a slot.
  */
-function notionalDisplay(symData) {
+function slotMetrics(symData) {
   const live = symData?.live || {}
   const qty = Math.abs(live.net_qty || 0)
   const mid = live.mid || 0
-  if (!qty || !mid) return 'FLAT'
+  const avg = live.avg_entry || 0
+  const side = live.side || 'short'
+  if (!qty || !mid) return { notionalStr: 'FLAT', pnlStr: '' }
+
   const usd = qty * mid
-  if (usd >= 1000) return `$${(usd / 1000).toFixed(1)}k`
-  return `$${usd.toFixed(0)}`
+  const notionalStr = usd >= 1000 ? `$${(usd / 1000).toFixed(1)}k` : `$${usd.toFixed(0)}`
+
+  let pnl = 0
+  if (avg > 0) {
+    pnl = side === 'short' ? (avg - mid) * qty : (mid - avg) * qty
+  }
+  const pnlStr = pnl >= 0 ? `+$${pnl.toFixed(2)}` : `-$${Math.abs(pnl).toFixed(2)}`
+
+  return { notionalStr, pnlStr }
 }
 
 async function loadConfig() {
@@ -170,7 +180,10 @@ async function addSlot(newSymbol) {
           <label>
             <input type="radio" v-model="selectedSlot" :value="sym" />
             <strong>{{ sym.split(':')[0] }}</strong>
-            <span class="notional">{{ notionalDisplay(data) }}</span>
+            <span class="metrics-right">
+              <span class="notional">{{ slotMetrics(data).notionalStr }}</span>
+              <span class="pnl" :class="{ green: (slotMetrics(data).pnlStr.startsWith('+')), red: (slotMetrics(data).pnlStr.startsWith('-')) }">{{ slotMetrics(data).pnlStr || '' }}</span>
+            </span>
           </label>
         </div>
       </div>
@@ -216,7 +229,10 @@ async function addSlot(newSymbol) {
 h3 { color: #00d4ff; font-size: 14px; margin-bottom: 10px; text-transform: uppercase; }
 .slot-option { margin-bottom: 8px; }
 .slot-option label { display: flex; align-items: center; gap: 12px; color: #e0e0e0; }
-.notional { margin-left: auto; font-family: monospace; font-size: 13px; color: #00ff88; }
+.metrics-right { margin-left: auto; display: flex; gap: 12px; align-items: center; font-family: monospace; font-size: 13px; }
+.notional { color: #e0e0e0; }
+.pnl.green { color: #00ff88; }
+.pnl.red   { color: #ff4757; }
 .btn { width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; color: #fff; background: #3742fa; margin-bottom: 6px; }
 .scan-btn { background: #00d4ff; color: #000; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
