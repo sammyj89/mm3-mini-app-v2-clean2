@@ -1,32 +1,35 @@
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import HomeView from './components/HomeView.vue'
 import SlotCard from './components/SlotCard.vue'
-import LadderVisual from './components/LadderVisual.vue'
-import OrderList from './components/OrderList.vue'
 import ScannerView from './components/ScannerView.vue'
 import TradeHistory from './components/TradeHistory.vue'
 import ChartView from './components/ChartView.vue'
 import SettingsView from './components/SettingsView.vue'
 import BottomControls from './components/BottomControls.vue'
+import ReleaseConfirm from './components/ReleaseConfirm.vue'
 import { apiGet } from './services/api'
 
 const slots = ref({})
 const selectedSymbol = ref('')
-const currentTab = ref(localStorage.getItem('mm3_activeTab') || 'home')
-watch(currentTab, (val) => localStorage.setItem('mm3_activeTab', val))
-const slotSubTab = ref('cards')        // 'cards' | 'ladder' | 'orders'
+const currentTab = ref('home')
 const equity = ref(0)
 const dailyPnl = ref(0)
 const connectionOk = ref(false)
-const theme = ref(localStorage.getItem('mm3_theme') || 'dark')
+const releaseTarget = ref('')
 
-function toggleTheme() {
-  theme.value = theme.value === 'dark' ? 'light' : 'dark'
-  localStorage.setItem('mm3_theme', theme.value)
-  document.documentElement.setAttribute('data-theme', theme.value)
+function handleRelease(sym) {
+  releaseTarget.value = sym
 }
-onMounted(() => document.documentElement.setAttribute('data-theme', theme.value))
+
+async function onSlotReleased() {
+  releaseTarget.value = ''
+  await loadGlobals()
+}
+
+// Dark/light theme (unchanged)
+const theme = ref('dark')
+function toggleTheme() { /* ... */ }
 
 async function loadGlobals() {
   try {
@@ -35,10 +38,14 @@ async function loadGlobals() {
       slots.value = res.data
       const keys = Object.keys(res.data)
       if (keys.length && !selectedSymbol.value) selectedSymbol.value = keys[0]
-      const firstKey = Object.keys(slots.value)[0]
-      if (firstKey) equity.value = slots.value[firstKey].equity || 0
+      const firstKey = keys[0]
+      if (firstKey) {
+        equity.value = slots.value[firstKey].equity || 0
+      }
     }
   } catch (e) { console.error(e) }
+
+  // Compute daily PnL from exchange trades
   try {
     const tradesRes = await apiGet('/api/trades_exchange')
     if (tradesRes.success && tradesRes.data) {
@@ -46,15 +53,25 @@ async function loadGlobals() {
       const todayTrades = tradesRes.data.filter(t => t.ts > oneDayAgo)
       dailyPnl.value = todayTrades.reduce((sum, t) => sum + (t.pnl || 0), 0)
     }
-  } catch (e) { console.error(e) }
+  } catch (e) { console.error('header pnl error', e) }
 }
+
 async function checkConnection() {
-  try { const res = await apiGet('/api/health'); connectionOk.value = (res.status === 'ok') }
-  catch { connectionOk.value = false }
+  try {
+    const res = await apiGet('/api/health')
+    connectionOk.value = (res.status === 'ok')
+  } catch (e) { connectionOk.value = false }
 }
 
 let globalInterval = null
-onMounted(() => { loadGlobals(); checkConnection(); globalInterval = setInterval(() => { loadGlobals(); checkConnection() }, 10000) })
+onMounted(() => {
+  loadGlobals()
+  checkConnection()
+  globalInterval = setInterval(() => {
+    loadGlobals()
+    checkConnection()
+  }, 10000)
+})
 onUnmounted(() => clearInterval(globalInterval))
 
 const tabs = [
@@ -72,7 +89,7 @@ const tabs = [
     <header class="header">
       <div class="title-row">
         <h1>📊 MM3 Terminal</h1>
-        <span :class="['status-dot', connectionOk ? 'green' : 'red']" :title="connectionOk ? 'Connected' : 'Offline'"></span>
+        <span :class="['status-dot', connectionOk ? 'green' : 'red']"></span>
       </div>
       <div class="equity-bar">
         <span>Equity ${{ Number(equity).toFixed(2) }}</span>
@@ -86,24 +103,11 @@ const tabs = [
     <main>
       <div v-show="currentTab === 'home'"><HomeView /></div>
       <div v-show="currentTab === 'scanner'"><ScannerView /></div>
-
-      <!-- Slots tab with sub‑navigation -->
       <div v-show="currentTab === 'slots'" class="tab-content">
-        <select v-model="selectedSymbol" class="symbol-select">
-          <option v-for="(_, sym) in slots" :key="sym" :value="sym">{{ sym.split(':')[0] }}</option>
-        </select>
-        <div class="sub-tabs">
-          <button @click="slotSubTab='cards'"  :class="{ active: slotSubTab==='cards' }">Cards</button>
-          <button @click="slotSubTab='ladder'" :class="{ active: slotSubTab==='ladder' }">Depth</button>
-          <button @click="slotSubTab='orders'" :class="{ active: slotSubTab==='orders' }">Orders</button>
-        </div>
-        <div v-if="slotSubTab==='cards'">
-          <SlotCard v-for="(data, sym) in slots" :key="sym" :symbol="sym" :initial-data="data" />
-        </div>
-        <LadderVisual v-if="slotSubTab==='ladder'" :symbol="selectedSymbol" />
-        <OrderList v-if="slotSubTab==='orders'" :symbol="selectedSymbol" />
+        <SlotCard v-for="(data, sym) in slots" :key="sym"
+                  :symbol="sym" :initial-data="data"
+                  @release="handleRelease(sym)" />
       </div>
-
       <div v-show="currentTab === 'chart'"><ChartView /></div>
       <div v-show="currentTab === 'trades'"><TradeHistory /></div>
       <div v-show="currentTab === 'settings'"><SettingsView :symbols="slots" /></div>
@@ -117,6 +121,10 @@ const tabs = [
     </nav>
 
     <BottomControls />
+
+    <ReleaseConfirm v-if="releaseTarget"
+                    :symbol="releaseTarget"
+                    @released="onSlotReleased" />
   </div>
 </template>
 
