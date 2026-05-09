@@ -183,7 +183,7 @@ async function addSlot(newSymbol) {
             <input type="radio" v-model="selectedSlot" :value="sym" />
             <div class="slot-main">
               <strong>{{ sym.split(':')[0] }}</strong>
-              <MiniPriceChart :symbol="sym" timeframe="15m" :limit="12" />
+              <MiniPriceChart :symbol="sym" timeframe="15m" :limit="24" />
             </div>
             <span class="metrics-right">
               <span class="notional">{{ slotMetrics(data).notionalStr }}</span>
@@ -219,7 +219,7 @@ async function addSlot(newSymbol) {
           <div class="pick-info">
             <div class="pick-main">
               <span class="symbol">{{ p.symbol.split(':')[0] }}</span>
-              <MiniPriceChart :symbol="p.symbol" timeframe="15m" :limit="12" />
+              <MiniPriceChart :symbol="p.symbol" timeframe="15m" :limit="24" />
             </div>
             <span class="score">Score: {{ p.score.toFixed(2) }}</span>
             <span class="rvol">RVOL: {{ Math.round(p.rvol) }}%</span>

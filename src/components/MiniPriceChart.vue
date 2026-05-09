@@ -5,8 +5,8 @@ import { apiGet } from '../services/api'
 
 const props = defineProps({
   symbol: String,
-  timeframe: { type: String, default: '5m' },
-  limit: { type: Number, default: 12 }
+  timeframe: { type: String, default: '15m' },
+  limit: { type: Number, default: 24 }
 })
 
 const canvas = ref(null)
@@ -22,11 +22,11 @@ async function loadChart() {
     })
     if (!res.success || !Array.isArray(res.data)) return
     const data = res.data
-    // Normalise to percentage change from first price
-    const base = data[0]
-    const pctData = data.map(p => ((p - base) / base) * 100)
-    const labels = pctData.map((_, i) => i)
-    const isUp = pctData[pctData.length - 1] >= 0
+    const labels = data.map((_, i) => i)
+
+    // line colour – green if last price >= first, red otherwise
+    const isUp = data[data.length - 1] >= data[0]
+    const colour = isUp ? '#00ff88' : '#ff4757'
 
     if (chart) chart.destroy()
     chart = new Chart(canvas.value, {
@@ -34,9 +34,15 @@ async function loadChart() {
       data: {
         labels,
         datasets: [{
-          data: pctData,
-          borderColor: isUp ? '#00ff88' : '#ff4757',
-          backgroundColor: 'transparent',
+          data,
+          borderColor: colour,
+          backgroundColor: (ctx) => {
+            const gradient = ctx.chart.ctx.createLinearGradient(0, 0, 0, ctx.chart.height)
+            gradient.addColorStop(0, colour + '44')    // 27 % opacity
+            gradient.addColorStop(1, colour + '00')    // fully transparent
+            return gradient
+          },
+          fill: true,
           pointRadius: 0,
           borderWidth: 1.5,
           tension: 0.1
@@ -61,14 +67,14 @@ watch(() => props.symbol, () => loadChart(), { immediate: true })
 
 <template>
   <div class="mini-chart">
-    <canvas ref="canvas" width="80" height="30"></canvas>
+    <canvas ref="canvas" width="100" height="40"></canvas>
   </div>
 </template>
 
 <style scoped>
 .mini-chart {
   display: inline-block;
-  width: 80px;
-  height: 30px;
+  width: 100px;
+  height: 40px;
 }
 </style>
