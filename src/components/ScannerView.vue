@@ -218,7 +218,7 @@ async function addSlot(newSymbol) {
         <div v-for="p in picks" :key="p.symbol" class="pick-item">
           <div class="pick-info">
             <div class="pick-main">
-              <span class="symbol">{{ p.symbol.split(':')[0] }}</span>
+              <span class="symbol">{{ p.symbol.split(':')[0].replace('/USDT', '') }}</span>
               <MiniPriceChart :symbol="p.symbol" timeframe="15m" :limit="48" />
             </div>
             <span class="score">Score: {{ p.score.toFixed(2) }}</span>
