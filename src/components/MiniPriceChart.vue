@@ -1,12 +1,12 @@
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch } from 'vue'
 import Chart from 'chart.js/auto'
 import { apiGet } from '../services/api'
 
 const props = defineProps({
   symbol: String,
-  timeframe: { type: String, default: '15m' },
-  limit: { type: Number, default: 24 }
+  timeframe: { type: String, default: '1h' },
+  limit: { type: Number, default: 12 }
 })
 
 const canvas = ref(null)
@@ -92,7 +92,7 @@ watch(() => props.symbol, () => loadChart(), { immediate: true })
   display: inline-block;
   width: 120px;
   height: 55px;
-  background: #0a0a1a;   /* dark chart background */
+  background: #0a0a1a;
   border-radius: 6px;
   padding: 2px;
 }
