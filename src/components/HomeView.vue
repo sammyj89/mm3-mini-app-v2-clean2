@@ -12,6 +12,13 @@ const loading = ref(true)
 const canvas = ref(null)
 let chart = null
 
+const stats = ref({
+  allTimePnl: 0,
+  totalTrades: 0,
+  winRate: 0,
+  profitFactor: 0,
+})
+
 async function loadSummary() {
   loading.value = true
   try {
@@ -33,12 +40,14 @@ async function loadSummary() {
         if (qty > 0 && avg > 0 && mid > 0) {
           pnl = side === 'short' ? (avg - mid) * qty : (mid - avg) * qty
         }
-        return { symbol: sym.split(':')[0], side, qty, pnl }
+        const notional = qty * mid
+        return { symbol: sym.split(':')[0], side, qty, notional, pnl }
       })
       unrealizedPnl.value = positions.value.reduce((sum, p) => sum + p.pnl, 0)
     }
   } catch (e) { console.error(e) }
 
+  // Today's realized P&L from exchange trades
   try {
     const tradesRes = await apiGet('/api/trades_exchange')
     if (tradesRes.success && tradesRes.data) {
@@ -49,6 +58,22 @@ async function loadSummary() {
   } catch (e) {
     console.error('daily pnl fetch error', e)
   }
+
+  // Performance stats
+  try {
+    const tradesRes = await apiGet('/api/trades_exchange')
+    if (tradesRes.success && tradesRes.data) {
+      const allTrades = tradesRes.data || []
+      const wins = allTrades.filter(t => (t.pnl || 0) > 0)
+      const losses = allTrades.filter(t => (t.pnl || 0) < 0)
+      stats.value.allTimePnl = allTrades.reduce((sum, t) => sum + (t.pnl || 0), 0)
+      stats.value.totalTrades = allTrades.length
+      stats.value.winRate = allTrades.length ? ((wins.length / allTrades.length) * 100).toFixed(1) : 0
+      const grossProfit = wins.reduce((sum, t) => sum + (t.pnl || 0), 0)
+      const grossLoss = Math.abs(losses.reduce((sum, t) => sum + (t.pnl || 0), 0))
+      stats.value.profitFactor = grossLoss > 0 ? (grossProfit / grossLoss).toFixed(2) : (grossProfit > 0 ? '∞' : '0.00')
+    }
+  } catch (e) { console.error('stats error', e) }
 
   loading.value = false
 }
@@ -116,15 +141,33 @@ onUnmounted(() => clearInterval(interval))
       <div v-for="pos in positions" :key="pos.symbol" class="position-row">
         <span class="symbol">{{ pos.symbol }}</span>
         <span class="side" :class="pos.side === 'short' ? 'red' : 'green'">{{ pos.side }}</span>
-        <span class="qty">{{ pos.qty.toFixed(4) }}</span>
+        <span class="notional">${{ pos.notional.toFixed(2) }}</span>
         <span class="pnl" :class="pos.pnl >= 0 ? 'green' : 'red'">${{ pos.pnl.toFixed(2) }}</span>
       </div>
     </div>
 
-    <div class="card">
-      <h3>📅 Today's Summary</h3>
-      <p v-if="dailyPnl >= 0">✅ You're up today. Keep it going!</p>
-      <p v-else>⚠️ Currently in the red. Review your positions.</p>
+    <div class="card summary-card">
+      <h3>📊 Performance</h3>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <span class="stat-label">All‑Time P&amp;L</span>
+          <span class="stat-value" :class="stats.allTimePnl >= 0 ? 'green' : 'red'">
+            ${{ stats.allTimePnl.toFixed(2) }}
+          </span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Total Trades</span>
+          <span class="stat-value">{{ stats.totalTrades }}</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Win Rate</span>
+          <span class="stat-value">{{ stats.winRate }}%</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">Profit Factor</span>
+          <span class="stat-value">{{ stats.profitFactor }}</span>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -137,11 +180,16 @@ h3 { color: #00d4ff; font-size: 14px; margin-bottom: 10px; text-transform: upper
 .metric { display: flex; flex-direction: column; }
 .label { font-size: 10px; color: #8888aa; text-transform: uppercase; }
 .value { font-size: 20px; font-weight: bold; font-family: monospace; }
-.green { color: #00ff88; } .red { color: #ff4757; }
+.green { color: #00ff88; }
+.red { color: #ff4757; }
 .mini-chart { height: 80px; margin-top: 12px; }
 .position-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #2a2a4a; font-size: 13px; }
 .symbol { font-weight: bold; min-width: 80px; }
 .side { text-transform: uppercase; min-width: 50px; }
-.qty { font-family: monospace; margin-left: auto; margin-right: 10px; }
+.notional { font-family: monospace; margin-left: auto; margin-right: 10px; }
 .pnl { font-family: monospace; }
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.stat-item { display: flex; flex-direction: column; }
+.stat-label { font-size: 10px; color: #8888aa; text-transform: uppercase; }
+.stat-value { font-size: 14px; font-weight: bold; font-family: monospace; }
 </style>
