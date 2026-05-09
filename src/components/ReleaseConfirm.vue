@@ -1,17 +1,27 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { apiPost } from '../services/api'
 import { postEvent } from '../tma'
 
+const props = defineProps({ symbol: String })
 const emit = defineEmits(['released'])
 const show = ref(false)
 
-function open() { show.value = true }
-function close() { show.value = false }
+onMounted(() => { show.value = true })
 
-async function release(sym) {
-  close()
-  await apiPost('/api/release_slot', { symbol: sym })
+function close() {
+  show.value = false
+  // Even if the user cancels, we still need to clear the selection
+  emit('released')
+}
+
+async function release() {
+  try {
+    await apiPost('/api/release_slot', { symbol: props.symbol })
+  } catch (e) {
+    console.error(e)
+  }
+  show.value = false
   emit('released')
   postEvent('web_app_trigger_haptic_feedback', { type:'notification', notification_style:'warning' })
 }
@@ -21,8 +31,8 @@ async function release(sym) {
   <div v-if="show" class="modal" @click.self="close">
     <div class="modal-content">
       <h3>Release Slot?</h3>
-      <p>Close position and remove {{ symbol }}</p>
-      <button class="btn" @click="release(symbol)">Yes</button>
+      <p>Close position and remove {{ symbol.split(':')[0] }}</p>
+      <button class="btn" @click="release">Yes</button>
       <button class="btn cancel" @click="close">No</button>
     </div>
   </div>
