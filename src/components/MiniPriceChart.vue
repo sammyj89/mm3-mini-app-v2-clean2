@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import Chart from 'chart.js/auto'
 import { apiGet } from '../services/api'
 
@@ -24,7 +24,6 @@ async function loadChart() {
     const data = res.data
     const labels = data.map((_, i) => i)
 
-    // line colour – green if last price >= first, red otherwise
     const isUp = data[data.length - 1] >= data[0]
     const colour = isUp ? '#00ff88' : '#ff4757'
 
@@ -38,14 +37,14 @@ async function loadChart() {
           borderColor: colour,
           backgroundColor: (ctx) => {
             const gradient = ctx.chart.ctx.createLinearGradient(0, 0, 0, ctx.chart.height)
-            gradient.addColorStop(0, colour + '44')    // 27 % opacity
-            gradient.addColorStop(1, colour + '00')    // fully transparent
+            gradient.addColorStop(0, colour + '33')
+            gradient.addColorStop(1, colour + '00')
             return gradient
           },
           fill: true,
           pointRadius: 0,
           borderWidth: 1.5,
-          tension: 0.1
+          tension: 0.15
         }]
       },
       options: {
@@ -54,8 +53,25 @@ async function loadChart() {
         plugins: { legend: { display: false } },
         scales: {
           x: { display: false },
-          y: { display: false }
+          y: {
+            display: true,
+            position: 'right',
+            border: { display: false },
+            grid: {
+              color: '#2a2a4a',
+              drawBorder: false,
+              lineWidth: 0.5
+            },
+            ticks: {
+              display: true,
+              color: '#8888aa',
+              font: { size: 8 },
+              maxTicksLimit: 3,
+              callback: (val) => val.toFixed(2)
+            }
+          }
         },
+        elements: { point: { radius: 0 } },
         animation: false
       }
     })
@@ -67,14 +83,17 @@ watch(() => props.symbol, () => loadChart(), { immediate: true })
 
 <template>
   <div class="mini-chart">
-    <canvas ref="canvas" width="100" height="40"></canvas>
+    <canvas ref="canvas" width="120" height="55"></canvas>
   </div>
 </template>
 
 <style scoped>
 .mini-chart {
   display: inline-block;
-  width: 100px;
-  height: 40px;
+  width: 120px;
+  height: 55px;
+  background: #0a0a1a;   /* dark chart background */
+  border-radius: 6px;
+  padding: 2px;
 }
 </style>
