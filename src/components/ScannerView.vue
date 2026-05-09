@@ -182,7 +182,7 @@ async function addSlot(newSymbol) {
           <label>
             <input type="radio" v-model="selectedSlot" :value="sym" />
             <div class="slot-main">
-              <strong>{{ sym.split(':')[0] }}</strong>
+              <strong>{{ sym.split(':')[0].replace('/USDT', '') }}</strong>
               <MiniPriceChart :symbol="sym" timeframe="15m" :limit="48" />
             </div>
             <span class="metrics-right">
