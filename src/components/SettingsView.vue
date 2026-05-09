@@ -15,7 +15,9 @@ const message = ref('')
 const selectedSymbol = ref('')
 const resetLoading = ref(false)
 
-// Initialise selectedSymbol from available slots
+// Manual add
+const manualSymbol = ref('')
+
 const initSymbol = () => {
   const keys = Object.keys(props.symbols || {})
   if (keys.length && !selectedSymbol.value) selectedSymbol.value = keys[0]
@@ -60,7 +62,6 @@ async function saveSettings() {
   saving.value = false
 }
 
-// Ladder reset functions
 async function resetAll() {
   if (!selectedSymbol.value) return
   resetLoading.value = true
@@ -80,10 +81,39 @@ async function resetRemaining() {
   } catch (e) { message.value = '❌ Reset failed' }
   resetLoading.value = false
 }
+
+async function addManualSymbol() {
+  const sym = manualSymbol.value.trim()
+  if (!sym) return
+  if (Object.keys(props.symbols || {}).length >= maxSlots.value) {
+    message.value = `Max ${maxSlots.value} slots reached`
+    return
+  }
+  try {
+    const res = await apiPost('/api/symbol', { symbol: sym })
+    if (res.success) {
+      message.value = `✅ Added ${sym}`
+      manualSymbol.value = ''
+      // Reload settings to update slot list
+      await loadSettings()
+    } else {
+      message.value = '❌ Failed to add symbol'
+    }
+  } catch (e) { message.value = '❌ Error: ' + e.message }
+}
 </script>
 
 <template>
   <div class="settings-tab">
+    <!-- Manual Add -->
+    <div class="card">
+      <h3>➕ Add Symbol</h3>
+      <div class="setting-row">
+        <input type="text" v-model="manualSymbol" placeholder="e.g. PEPE/USDT" class="input wide" />
+        <button class="btn small-btn" @click="addManualSymbol">Add</button>
+      </div>
+    </div>
+
     <!-- Slot Configuration -->
     <div class="card">
       <h3>⚙️ Slot Configuration</h3>
@@ -141,10 +171,12 @@ async function resetRemaining() {
 .settings-tab { padding: 12px; }
 .card { background: #16213e; border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
 h3 { color: #00d4ff; font-size: 14px; margin-bottom: 10px; text-transform: uppercase; }
-.setting-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.setting-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .setting-row label { color: #e0e0e0; }
-.input { width: 80px; padding: 6px; background: #1a1a2e; border: 1px solid #2a2a4a; border-radius: 6px; color: #e0e0e0; font-size: 14px; text-align: center; }
+.input.wide { flex: 1; width: auto; }
+.input { width: 80px; padding: 6px; background: #1a1a2e; border: 1px solid #2a2a4a; border-radius: 6px; color: #e0e0e0; font-size: 14px; text-align: left; }
 input[type="range"] { flex: 1; accent-color: #00d4ff; }
+.small-btn { width: auto; padding: 8px 16px; font-size: 13px; background: #3742fa; color: #fff; border: none; border-radius: 8px; cursor: pointer; }
 .hint { font-size: 11px; color: #8888aa; }
 .toggle-row { display: flex; gap: 8px; margin-bottom: 12px; }
 .btn { flex: 1; padding: 10px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; color: #fff; background: #3742fa; }
