@@ -181,7 +181,10 @@ async function addSlot(newSymbol) {
         <div v-for="(data, sym) in slots" :key="sym" class="slot-option">
           <label>
             <input type="radio" v-model="selectedSlot" :value="sym" />
-            <strong>{{ sym.split(':')[0] }}</strong>
+            <div class="slot-main">
+              <strong>{{ sym.split(':')[0] }}</strong>
+              <MiniPriceChart :symbol="sym" timeframe="15m" :limit="12" />
+            </div>
             <span class="metrics-right">
               <span class="notional">{{ slotMetrics(data).notionalStr }}</span>
               <span class="pnl" :class="{ green: (slotMetrics(data).pnlStr.startsWith('+')), red: (slotMetrics(data).pnlStr.startsWith('-')) }">{{ slotMetrics(data).pnlStr || '' }}</span>
@@ -203,7 +206,7 @@ async function addSlot(newSymbol) {
       <p class="status" v-if="statusMsg">{{ statusMsg }}</p>
     </div>
 
-    <!-- Empty state when no picks and not scanning -->
+    <!-- Empty state -->
     <div v-if="picks.length === 0 && !scanning" class="card empty-state">
       📡 No scanner data yet – tap <strong>Start Scan</strong> to find today’s top movers.
     </div>
@@ -248,6 +251,11 @@ h3 { color: #00d4ff; font-size: 14px; margin-bottom: 10px; text-transform: upper
 .pick-item { border-bottom: 1px solid #2a2a4a; padding: 10px 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
 .pick-info { display: flex; flex-direction: column; }
 .symbol { font-size: 16px; font-weight: bold; }
+.slot-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 .score, .rvol { font-size: 10px; color: #8888aa; }
 .pick-actions { display: flex; gap: 6px; margin-top: 6px; }
 .status { color: #ffa502; font-size: 12px; margin-top: 6px; }
