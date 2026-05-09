@@ -159,8 +159,4 @@ main { flex:1; padding:12px; overflow-y:auto; }
   cursor:pointer; opacity:0.6; transition:0.2s;
 }
 .bottom-bar button.active { opacity:1; color:var(--accent); }
-.symbol-select { width:100%; padding:8px; background:var(--card); color:var(--text); border:none; border-radius:8px; margin-bottom:12px; }
-.sub-tabs { display:flex; gap:8px; margin-bottom:12px; }
-.sub-tabs button { flex:1; padding:8px; border:none; border-radius:6px; background:var(--card); color:var(--text); cursor:pointer; font-weight:600; font-size:12px; }
-.sub-tabs button.active { background:var(--accent); color:#000; }
 </style>
