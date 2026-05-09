@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { apiGet, apiPost, apiPostQuery } from '../services/api'
 import { postEvent } from '../tma'
+import MiniPriceChart from './MiniPriceChart.vue'
 
 const slots = ref({})
 const selectedSlot = ref('')
@@ -173,6 +174,7 @@ async function addSlot(newSymbol) {
 
 <template>
   <div class="scanner-tab">
+    <!-- Current Slots (select which to replace) -->
     <div class="card">
       <h3>🎯 Current Slots</h3>
       <div v-if="Object.keys(slots).length">
@@ -190,6 +192,7 @@ async function addSlot(newSymbol) {
       <p v-else>No active slots – add a symbol first.</p>
     </div>
 
+    <!-- Scanner controls -->
     <div class="card">
       <h3>📡 Run Scanner</h3>
       <button class="btn scan-btn" @click="runScanner" :disabled="scanning">
@@ -200,16 +203,21 @@ async function addSlot(newSymbol) {
       <p class="status" v-if="statusMsg">{{ statusMsg }}</p>
     </div>
 
+    <!-- Empty state when no picks and not scanning -->
     <div v-if="picks.length === 0 && !scanning" class="card empty-state">
       📡 No scanner data yet – tap <strong>Start Scan</strong> to find today’s top movers.
     </div>
 
+    <!-- Scanner Results -->
     <div v-if="picks.length" class="card">
       <h3>🏆 Top Picks</h3>
       <div class="pick-list">
         <div v-for="p in picks" :key="p.symbol" class="pick-item">
           <div class="pick-info">
-            <span class="symbol">{{ p.symbol.split(':')[0] }}</span>
+            <div class="pick-main">
+              <span class="symbol">{{ p.symbol.split(':')[0] }}</span>
+              <MiniPriceChart :symbol="p.symbol" timeframe="15m" :limit="12" />
+            </div>
             <span class="score">Score: {{ p.score.toFixed(2) }}</span>
             <span class="rvol">RVOL: {{ Math.round(p.rvol) }}%</span>
           </div>
