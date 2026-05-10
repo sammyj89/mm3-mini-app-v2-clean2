@@ -240,6 +240,29 @@ async function addSlot(newSymbol) {
 h3 { color: #00d4ff; font-size: 14px; margin-bottom: 10px; text-transform: uppercase; }
 .slot-option { margin-bottom: 8px; }
 .slot-option label { display: flex; align-items: center; gap: 12px; color: #e0e0e0; }
+.slot-option label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+.slot-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;         /* prevent shrinking */
+  min-width: 120px;        /* enough room for symbol + sparkline */
+}
+.symbol {
+  min-width: 60px;         /* fixed width for symbol text */
+  font-weight: bold;
+}
+.pick-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 120px;        /* match slot-main */
+}
 .metrics-right { margin-left: auto; display: flex; gap: 12px; align-items: center; font-family: monospace; font-size: 13px; }
 .notional { color: #e0e0e0; }
 .pnl.green { color: #00ff88; }
