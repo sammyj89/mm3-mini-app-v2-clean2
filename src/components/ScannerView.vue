@@ -23,9 +23,7 @@ const timeAgo = computed(() => {
   return `${hr}h ago`
 })
 
-/**
- * Return notional (USD) and current PnL for a slot.
- */
+// ── helper: notional + PnL for a slot ──
 function slotMetrics(symData) {
   const live = symData?.live || {}
   const qty = Math.abs(live.net_qty || 0)
@@ -174,20 +172,26 @@ async function addSlot(newSymbol) {
 
 <template>
   <div class="scanner-tab">
-    <!-- Current Slots (select which to replace) -->
+    <!-- Current Slots -->
     <div class="card">
       <h3>🎯 Current Slots</h3>
       <div v-if="Object.keys(slots).length">
-        <div v-for="(data, sym) in slots" :key="sym" class="slot-option">
-          <label>
+        <div v-for="(data, sym) in slots" :key="sym" class="slot-row">
+          <label class="slot-label">
             <input type="radio" v-model="selectedSlot" :value="sym" />
             <div class="slot-main">
-              <strong>{{ sym.split(':')[0].replace('/USDT', '') }}</strong>
-              <MiniPriceChart :symbol="sym" timeframe="15m" :limit="48" />
+              <strong class="symbol-text">{{ sym.split(':')[0] }}</strong>
+              <MiniPriceChart :symbol="sym" timeframe="15m" :limit="24" />
             </div>
             <span class="metrics-right">
               <span class="notional">{{ slotMetrics(data).notionalStr }}</span>
-              <span class="pnl" :class="{ green: (slotMetrics(data).pnlStr.startsWith('+')), red: (slotMetrics(data).pnlStr.startsWith('-')) }">{{ slotMetrics(data).pnlStr || '' }}</span>
+              <span
+                class="pnl"
+                :class="{
+                  green: (slotMetrics(data).pnlStr.startsWith('+')),
+                  red: (slotMetrics(data).pnlStr.startsWith('-'))
+                }"
+              >{{ slotMetrics(data).pnlStr || '' }}</span>
             </span>
           </label>
         </div>
@@ -218,8 +222,8 @@ async function addSlot(newSymbol) {
         <div v-for="p in picks" :key="p.symbol" class="pick-item">
           <div class="pick-info">
             <div class="pick-main">
-              <span class="symbol">{{ p.symbol.split(':')[0].replace('/USDT', '') }}</span>
-              <MiniPriceChart :symbol="p.symbol" timeframe="15m" :limit="48" />
+              <span class="symbol-text">{{ p.symbol.split(':')[0].replace('/USDT', '') }}</span>
+              <MiniPriceChart :symbol="p.symbol" timeframe="15m" :limit="24" />
             </div>
             <span class="score">Score: {{ p.score.toFixed(2) }}</span>
             <span class="rvol">RVOL: {{ Math.round(p.rvol) }}%</span>
@@ -238,49 +242,85 @@ async function addSlot(newSymbol) {
 .scanner-tab { padding: 12px; }
 .card { background: #16213e; border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
 h3 { color: #00d4ff; font-size: 14px; margin-bottom: 10px; text-transform: uppercase; }
-.slot-option { margin-bottom: 8px; }
-.slot-option label { display: flex; align-items: center; gap: 12px; color: #e0e0e0; }
-.slot-option label {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
+
+/* ---- slot / pick row layout ---- */
+.slot-row {
+  margin-bottom: 8px;
 }
-.slot-main {
+.slot-label {
   display: flex;
   align-items: center;
   gap: 10px;
-  flex: 0 0 auto;         /* prevent shrinking */
-  min-width: 120px;        /* enough room for symbol + sparkline */
+  width: 100%;
+  cursor: pointer;
 }
-.symbol {
-  min-width: 60px;         /* fixed width for symbol text */
-  font-weight: bold;
+.pick-item {
+  border-bottom: 1px solid #2a2a4a;
+  padding: 10px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
+
+/* ---- symbol name (fixed width, ellipsis) ---- */
+.slot-main,
 .pick-main {
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-width: 120px;        /* match slot-main */
+  gap: 8px;
+  min-width: 130px;
+  max-width: 130px;
 }
-.metrics-right { margin-left: auto; display: flex; gap: 12px; align-items: center; font-family: monospace; font-size: 13px; }
-.notional { color: #e0e0e0; }
+.symbol-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 60px;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+/* ---- sparkline (fixed size) ---- */
+.slot-main .mini-chart,
+.pick-main .mini-chart {
+  width: 100px;
+  height: 40px;
+  flex-shrink: 0;
+}
+
+/* ---- right side metrics (notional + pnl) ---- */
+.metrics-right {
+  margin-left: auto;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-shrink: 0;
+  font-family: monospace;
+  font-size: 13px;
+}
+.notional {
+  min-width: 65px;
+  text-align: right;
+  color: #e0e0e0;
+}
+.pnl {
+  min-width: 75px;
+  text-align: right;
+}
 .pnl.green { color: #00ff88; }
 .pnl.red   { color: #ff4757; }
+
+/* ---- scanner buttons ---- */
 .btn { width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; color: #fff; background: #3742fa; margin-bottom: 6px; }
 .scan-btn { background: #00d4ff; color: #000; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .small { padding: 8px 12px; font-size: 12px; width: auto; }
-.pick-item { border-bottom: 1px solid #2a2a4a; padding: 10px 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+
+/* ---- pick list details ---- */
 .pick-info { display: flex; flex-direction: column; }
-.symbol { font-size: 16px; font-weight: bold; }
-.slot-main {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
 .score, .rvol { font-size: 10px; color: #8888aa; }
 .pick-actions { display: flex; gap: 6px; margin-top: 6px; }
+
 .status { color: #ffa502; font-size: 12px; margin-top: 6px; }
 .scan-freshness { font-size: 12px; color: #aaa; margin-top: 4px; }
 .empty-state { text-align: center; padding: 20px; color: #aaa; }
