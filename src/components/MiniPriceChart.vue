@@ -5,8 +5,8 @@ import { apiGet } from '../services/api'
 
 const props = defineProps({
   symbol: String,
-  timeframe: { type: String, default: '15m' },
-  limit: { type: Number, default: 24 }
+  timeframe: { type: String, default: '1h' },
+  limit: { type: Number, default: 12 }
 })
 
 const canvas = ref(null)
@@ -22,6 +22,7 @@ async function loadChart() {
     })
     if (!res.success || !Array.isArray(res.data)) return
     const data = res.data
+    const labels = data.map((_, i) => i)
 
     const isUp = data[data.length - 1] >= data[0]
     const colour = isUp ? '#00ff88' : '#ff4757'
@@ -30,7 +31,7 @@ async function loadChart() {
     chart = new Chart(canvas.value, {
       type: 'line',
       data: {
-        labels: data.map((_, i) => i),
+        labels,
         datasets: [{
           data,
           borderColor: colour,
@@ -52,7 +53,23 @@ async function loadChart() {
         plugins: { legend: { display: false } },
         scales: {
           x: { display: false },
-          y: { display: false }
+          y: {
+            display: true,
+            position: 'right',
+            border: { display: false },
+            grid: {
+              color: '#2a2a4a',
+              drawBorder: false,
+              lineWidth: 0.5
+            },
+            ticks: {
+              display: true,
+              color: '#8888aa',
+              font: { size: 8 },
+              maxTicksLimit: 3,
+              callback: (val) => val.toFixed(2)
+            }
+          }
         },
         elements: { point: { radius: 0 } },
         animation: false
@@ -66,20 +83,17 @@ watch(() => props.symbol, () => loadChart(), { immediate: true })
 
 <template>
   <div class="mini-chart">
-    <canvas ref="canvas"></canvas>
+    <canvas ref="canvas" width="120" height="55"></canvas>
   </div>
 </template>
 
 <style scoped>
 .mini-chart {
-  width: 80px;          /* matches scanner slot-right */
-  height: 36px;
+  display: inline-block;
+  width: 120px;
+  height: 55px;
   background: #0a0a1a;
-  border-radius: 4px;
-  overflow: hidden;
-}
-canvas {
-  width: 100%;
-  height: 100%;
+  border-radius: 6px;
+  padding: 2px;
 }
 </style>
