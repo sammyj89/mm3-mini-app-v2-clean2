@@ -266,9 +266,10 @@ h3 { color: #00d4ff; font-size: 14px; margin-bottom: 10px; text-transform: upper
   font-size: 13px;
 }
 .slot-right .mini-chart {
-  width: 80px;                /* slightly narrower sparkline */
+  width: 80px;
   height: 36px;
   flex-shrink: 0;
+  overflow: hidden;   /* ← NEW: guarantee no overflow */
 }
 .notional {
   min-width: 55px;

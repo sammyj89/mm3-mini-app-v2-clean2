@@ -5,8 +5,8 @@ import { apiGet } from '../services/api'
 
 const props = defineProps({
   symbol: String,
-  timeframe: { type: String, default: '1h' },
-  limit: { type: Number, default: 12 }
+  timeframe: { type: String, default: '15m' },
+  limit: { type: Number, default: 24 }
 })
 
 const canvas = ref(null)
@@ -22,21 +22,26 @@ async function loadChart() {
     })
     if (!res.success || !Array.isArray(res.data)) return
     const data = res.data
-    const labels = data.map((_, i) => i)
 
     const isUp = data[data.length - 1] >= data[0]
     const colour = isUp ? '#00ff88' : '#ff4757'
 
     if (chart) chart.destroy()
-    chart = new Chart(canvas.value, {
+
+    // set explicit dimensions so the chart doesn't scale beyond the container
+    const ctx = canvas.value.getContext('2d')
+    canvas.value.width = canvas.value.clientWidth
+    canvas.value.height = canvas.value.clientHeight
+
+    chart = new Chart(ctx, {
       type: 'line',
       data: {
-        labels,
+        labels: data.map((_, i) => i),
         datasets: [{
           data,
           borderColor: colour,
-          backgroundColor: (ctx) => {
-            const gradient = ctx.chart.ctx.createLinearGradient(0, 0, 0, ctx.chart.height)
+          backgroundColor: (ctx2) => {
+            const gradient = ctx2.chart.ctx.createLinearGradient(0, 0, 0, ctx2.chart.height)
             gradient.addColorStop(0, colour + '33')
             gradient.addColorStop(1, colour + '00')
             return gradient
@@ -50,28 +55,16 @@ async function loadChart() {
       options: {
         responsive: false,
         maintainAspectRatio: false,
+        devicePixelRatio: 1,   // prevent 2x scaling on retina
         plugins: { legend: { display: false } },
         scales: {
           x: { display: false },
           y: {
-            display: true,
-            position: 'right',
-            border: { display: false },
-            grid: {
-              color: '#2a2a4a',
-              drawBorder: false,
-              lineWidth: 0.5
-            },
-            ticks: {
-              display: true,
-              color: '#8888aa',
-              font: { size: 8 },
-              maxTicksLimit: 3,
-              callback: (val) => val.toFixed(2)
-            }
+            display: false,
+            min: Math.min(...data) * 0.999,
+            max: Math.max(...data) * 1.001
           }
         },
-        elements: { point: { radius: 0 } },
         animation: false
       }
     })
@@ -83,17 +76,21 @@ watch(() => props.symbol, () => loadChart(), { immediate: true })
 
 <template>
   <div class="mini-chart">
-    <canvas ref="canvas" width="120" height="55"></canvas>
+    <canvas ref="canvas"></canvas>
   </div>
 </template>
 
 <style scoped>
 .mini-chart {
   display: inline-block;
-  width: 120px;
-  height: 55px;
+  width: 80px;        /* matches the scanner’s .slot-right .mini-chart */
+  height: 36px;
+  overflow: hidden;   /* never draw outside */
   background: #0a0a1a;
-  border-radius: 6px;
-  padding: 2px;
+  border-radius: 4px;
+}
+canvas {
+  width: 100%;
+  height: 100%;
 }
 </style>
