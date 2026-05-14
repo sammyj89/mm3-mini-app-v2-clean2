@@ -214,14 +214,12 @@ async function addSlot(newSymbol) {
       <h3>🏆 Top Picks</h3>
       <div class="pick-list">
         <div v-for="p in picks" :key="p.symbol" class="pick-item">
-          <div class="pick-left">
-            <div class="pick-name-row">
-              <span class="symbol-name pick-name">{{ p.symbol.split(':')[0].replace('/USDT', '') }}</span>
-              <MiniPriceChart :symbol="p.symbol" timeframe="15m" :limit="24" />
-            </div>
+          <div class="pick-info">
+            <span class="symbol-name pick-name">{{ p.symbol.split(':')[0].replace('/USDT', '') }}</span>
             <span class="score">Score: {{ p.score.toFixed(2) }}</span>
             <span class="rvol">RVOL: {{ Math.round(p.rvol) }}%</span>
           </div>
+          <MiniPriceChart :symbol="p.symbol" timeframe="15m" :limit="24" class="pick-chart" />
           <div class="pick-actions">
             <button class="btn small" @click="replaceSlot(p.symbol)" :disabled="!selectedSlot">🔄 Replace</button>
             <button class="btn small" @click="addSlot(p.symbol)" v-if="Object.keys(slots).length < maxSlots">➕ Add</button>
@@ -303,6 +301,16 @@ h3 { color: #00d4ff; font-size: 14px; margin-bottom: 10px; text-transform: upper
 .pick-info {
   display: flex;
   flex-direction: column;
+}
+.pick-info {
+  flex: 1;                 /* take remaining space */
+  min-width: 0;            /* allow shrinking for ellipsis */
+}
+.pick-chart {
+  flex-shrink: 0;
+  width: 80px;
+  height: 36px;
+  margin-left: 8px;        /* small gap from the text */
 }
 .pick-name-row {
   display: flex;
