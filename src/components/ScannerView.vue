@@ -260,23 +260,23 @@ h3 { color: #00d4ff; font-size: 14px; margin-bottom: 10px; text-transform: upper
 .slot-right {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;                   /* tighter gap between items */
   flex-shrink: 0;
   font-family: monospace;
   font-size: 13px;
 }
 .slot-right .mini-chart {
-  width: 90px;
+  width: 80px;                /* slightly narrower sparkline */
   height: 36px;
   flex-shrink: 0;
 }
 .notional {
-  min-width: 60px;
+  min-width: 55px;
   text-align: right;
   color: #e0e0e0;
 }
 .pnl {
-  min-width: 70px;
+  min-width: 65px;
   text-align: right;
 }
 .pnl.green { color: #00ff88; }
@@ -295,7 +295,7 @@ h3 { color: #00d4ff; font-size: 14px; margin-bottom: 10px; text-transform: upper
   flex-direction: column;
 }
 .pick-name {
-  max-width: 160px;   /* good width for most symbols */
+  max-width: 180px;          /* more room for pick names */
   margin-bottom: 2px;
 }
 .score, .rvol { font-size: 10px; color: #8888aa; }
