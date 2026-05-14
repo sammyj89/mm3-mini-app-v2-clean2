@@ -175,11 +175,9 @@ async function addSlot(newSymbol) {
         <div v-for="(data, sym) in slots" :key="sym" class="slot-row">
           <label class="slot-label">
             <input type="radio" v-model="selectedSlot" :value="sym" />
-            <div class="slot-main">
-              <span class="symbol-text">{{ sym.split(':')[0].replace('/USDT', '') }}</span>
+            <span class="symbol-name">{{ sym.split(':')[0].replace('/USDT', '') }}</span>
+            <div class="slot-right">
               <MiniPriceChart :symbol="sym" timeframe="15m" :limit="24" />
-            </div>
-            <span class="metrics-right">
               <span class="notional">{{ slotMetrics(data).notionalStr }}</span>
               <span
                 class="pnl"
@@ -188,7 +186,7 @@ async function addSlot(newSymbol) {
                   red: (slotMetrics(data).pnlStr.startsWith('-'))
                 }"
               >{{ slotMetrics(data).pnlStr || '' }}</span>
-            </span>
+            </div>
           </label>
         </div>
       </div>
@@ -217,10 +215,7 @@ async function addSlot(newSymbol) {
       <div class="pick-list">
         <div v-for="p in picks" :key="p.symbol" class="pick-item">
           <div class="pick-info">
-            <div class="pick-main">
-              <span class="symbol-text">{{ p.symbol.split(':')[0].replace('/USDT', '') }}</span>
-              <MiniPriceChart :symbol="p.symbol" timeframe="15m" :limit="24" />
-            </div>
+            <span class="symbol-name pick-name">{{ p.symbol.split(':')[0].replace('/USDT', '') }}</span>
             <span class="score">Score: {{ p.score.toFixed(2) }}</span>
             <span class="rvol">RVOL: {{ Math.round(p.rvol) }}%</span>
           </div>
@@ -239,7 +234,7 @@ async function addSlot(newSymbol) {
 .card { background: #16213e; border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
 h3 { color: #00d4ff; font-size: 14px; margin-bottom: 10px; text-transform: uppercase; }
 
-/* slot / pick row layout */
+/* ---- slot row ---- */
 .slot-row {
   margin-bottom: 8px;
 }
@@ -250,6 +245,44 @@ h3 { color: #00d4ff; font-size: 14px; margin-bottom: 10px; text-transform: upper
   width: 100%;
   cursor: pointer;
 }
+
+/* Pair name – takes all available space */
+.symbol-name {
+  flex: 1;
+  font-weight: bold;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Right side: sparkline + notional + PnL */
+.slot-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  font-family: monospace;
+  font-size: 13px;
+}
+.slot-right .mini-chart {
+  width: 90px;
+  height: 36px;
+  flex-shrink: 0;
+}
+.notional {
+  min-width: 60px;
+  text-align: right;
+  color: #e0e0e0;
+}
+.pnl {
+  min-width: 70px;
+  text-align: right;
+}
+.pnl.green { color: #00ff88; }
+.pnl.red   { color: #ff4757; }
+
+/* ---- scanner picks ---- */
 .pick-item {
   border-bottom: 1px solid #2a2a4a;
   padding: 10px 0;
@@ -257,65 +290,22 @@ h3 { color: #00d4ff; font-size: 14px; margin-bottom: 10px; text-transform: upper
   justify-content: space-between;
   align-items: center;
 }
-
-/* symbol name – wider, truncate only if extremely long */
-.slot-main,
-.pick-main {
+.pick-info {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 150px;      /* enough space for name + sparkline */
-  max-width: 150px;
+  flex-direction: column;
 }
-.symbol-text {
-  max-width: 80px;        /* enough for typical 8‑char symbols */
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: bold;
-  font-size: 14px;
+.pick-name {
+  max-width: 160px;   /* good width for most symbols */
+  margin-bottom: 2px;
 }
+.score, .rvol { font-size: 10px; color: #8888aa; }
+.pick-actions { display: flex; gap: 6px; margin-top: 6px; }
 
-/* sparkline – fixed size */
-.slot-main .mini-chart,
-.pick-main .mini-chart {
-  width: 100px;
-  height: 40px;
-  flex-shrink: 0;
-}
-
-/* right side metrics */
-.metrics-right {
-  margin-left: auto;
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  flex-shrink: 0;
-  font-family: monospace;
-  font-size: 13px;
-}
-.notional {
-  min-width: 65px;
-  text-align: right;
-  color: #e0e0e0;
-}
-.pnl {
-  min-width: 75px;
-  text-align: right;
-}
-.pnl.green { color: #00ff88; }
-.pnl.red   { color: #ff4757; }
-
-/* buttons */
+/* ---- buttons ---- */
 .btn { width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; color: #fff; background: #3742fa; margin-bottom: 6px; }
 .scan-btn { background: #00d4ff; color: #000; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .small { padding: 8px 12px; font-size: 12px; width: auto; }
-
-/* pick details */
-.pick-info { display: flex; flex-direction: column; }
-.score, .rvol { font-size: 10px; color: #8888aa; }
-.pick-actions { display: flex; gap: 6px; margin-top: 6px; }
 
 .status { color: #ffa502; font-size: 12px; margin-top: 6px; }
 .scan-freshness { font-size: 12px; color: #aaa; margin-top: 4px; }
