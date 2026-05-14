@@ -214,8 +214,8 @@ async function addSlot(newSymbol) {
       <h3>🏆 Top Picks</h3>
       <div class="pick-list">
         <div v-for="p in picks" :key="p.symbol" class="pick-item">
-          <div class="pick-info">
-            <div class="pick-main">
+          <div class="pick-left">
+            <div class="pick-name-row">
               <span class="symbol-name pick-name">{{ p.symbol.split(':')[0].replace('/USDT', '') }}</span>
               <MiniPriceChart :symbol="p.symbol" timeframe="15m" :limit="24" />
             </div>
@@ -303,6 +303,12 @@ h3 { color: #00d4ff; font-size: 14px; margin-bottom: 10px; text-transform: upper
 .pick-info {
   display: flex;
   flex-direction: column;
+}
+.pick-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
 }
 .pick-name {
   max-width: 180px;          /* more room for pick names */
