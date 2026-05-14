@@ -27,21 +27,15 @@ async function loadChart() {
     const colour = isUp ? '#00ff88' : '#ff4757'
 
     if (chart) chart.destroy()
-
-    // set explicit dimensions so the chart doesn't scale beyond the container
-    const ctx = canvas.value.getContext('2d')
-    canvas.value.width = canvas.value.clientWidth
-    canvas.value.height = canvas.value.clientHeight
-
-    chart = new Chart(ctx, {
+    chart = new Chart(canvas.value, {
       type: 'line',
       data: {
         labels: data.map((_, i) => i),
         datasets: [{
           data,
           borderColor: colour,
-          backgroundColor: (ctx2) => {
-            const gradient = ctx2.chart.ctx.createLinearGradient(0, 0, 0, ctx2.chart.height)
+          backgroundColor: (ctx) => {
+            const gradient = ctx.chart.ctx.createLinearGradient(0, 0, 0, ctx.chart.height)
             gradient.addColorStop(0, colour + '33')
             gradient.addColorStop(1, colour + '00')
             return gradient
@@ -55,16 +49,12 @@ async function loadChart() {
       options: {
         responsive: false,
         maintainAspectRatio: false,
-        devicePixelRatio: 1,   // prevent 2x scaling on retina
         plugins: { legend: { display: false } },
         scales: {
           x: { display: false },
-          y: {
-            display: false,
-            min: Math.min(...data) * 0.999,
-            max: Math.max(...data) * 1.001
-          }
+          y: { display: false }
         },
+        elements: { point: { radius: 0 } },
         animation: false
       }
     })
@@ -82,12 +72,11 @@ watch(() => props.symbol, () => loadChart(), { immediate: true })
 
 <style scoped>
 .mini-chart {
-  display: inline-block;
-  width: 80px;        /* matches the scanner’s .slot-right .mini-chart */
+  width: 80px;          /* matches scanner slot-right */
   height: 36px;
-  overflow: hidden;   /* never draw outside */
   background: #0a0a1a;
   border-radius: 4px;
+  overflow: hidden;
 }
 canvas {
   width: 100%;
