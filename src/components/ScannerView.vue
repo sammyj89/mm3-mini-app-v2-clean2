@@ -23,7 +23,6 @@ const timeAgo = computed(() => {
   return `${hr}h ago`
 })
 
-// ── helper: notional + PnL for a slot ──
 function slotMetrics(symData) {
   const live = symData?.live || {}
   const qty = Math.abs(live.net_qty || 0)
@@ -72,7 +71,6 @@ async function fetchExistingPicks() {
   } catch (e) { /* ignore */ }
 }
 
-// ── Polling ──
 let refreshInterval = null
 let timeAgoInterval = null
 
@@ -96,7 +94,6 @@ onUnmounted(() => {
   clearInterval(timeAgoInterval)
 })
 
-// ── Run the scanner ──
 async function runScanner() {
   scanning.value = true
   statusMsg.value = 'Scanning…'
@@ -130,7 +127,6 @@ async function runScanner() {
   postEvent('web_app_trigger_haptic_feedback', { type: 'impact', impact_style: 'medium' })
 }
 
-// ── Rotation ──
 async function replaceSlot(newSymbol) {
   if (!selectedSlot.value) {
     statusMsg.value = 'Please select a current slot to replace.'
@@ -180,7 +176,7 @@ async function addSlot(newSymbol) {
           <label class="slot-label">
             <input type="radio" v-model="selectedSlot" :value="sym" />
             <div class="slot-main">
-              <strong class="symbol-text">{{ sym.split(':')[0] }}</strong>
+              <span class="symbol-text">{{ sym.split(':')[0].replace('/USDT', '') }}</span>
               <MiniPriceChart :symbol="sym" timeframe="15m" :limit="24" />
             </div>
             <span class="metrics-right">
@@ -243,7 +239,7 @@ async function addSlot(newSymbol) {
 .card { background: #16213e; border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
 h3 { color: #00d4ff; font-size: 14px; margin-bottom: 10px; text-transform: uppercase; }
 
-/* ---- slot / pick row layout ---- */
+/* slot / pick row layout */
 .slot-row {
   margin-bottom: 8px;
 }
@@ -262,25 +258,25 @@ h3 { color: #00d4ff; font-size: 14px; margin-bottom: 10px; text-transform: upper
   align-items: center;
 }
 
-/* ---- symbol name (fixed width, ellipsis) ---- */
+/* symbol name – wider, truncate only if extremely long */
 .slot-main,
 .pick-main {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-width: 130px;
-  max-width: 130px;
+  min-width: 150px;      /* enough space for name + sparkline */
+  max-width: 150px;
 }
 .symbol-text {
+  max-width: 80px;        /* enough for typical 8‑char symbols */
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 60px;
   font-weight: bold;
   font-size: 14px;
 }
 
-/* ---- sparkline (fixed size) ---- */
+/* sparkline – fixed size */
 .slot-main .mini-chart,
 .pick-main .mini-chart {
   width: 100px;
@@ -288,7 +284,7 @@ h3 { color: #00d4ff; font-size: 14px; margin-bottom: 10px; text-transform: upper
   flex-shrink: 0;
 }
 
-/* ---- right side metrics (notional + pnl) ---- */
+/* right side metrics */
 .metrics-right {
   margin-left: auto;
   display: flex;
@@ -310,13 +306,13 @@ h3 { color: #00d4ff; font-size: 14px; margin-bottom: 10px; text-transform: upper
 .pnl.green { color: #00ff88; }
 .pnl.red   { color: #ff4757; }
 
-/* ---- scanner buttons ---- */
+/* buttons */
 .btn { width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; color: #fff; background: #3742fa; margin-bottom: 6px; }
 .scan-btn { background: #00d4ff; color: #000; }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .small { padding: 8px 12px; font-size: 12px; width: auto; }
 
-/* ---- pick list details ---- */
+/* pick details */
 .pick-info { display: flex; flex-direction: column; }
 .score, .rvol { font-size: 10px; color: #8888aa; }
 .pick-actions { display: flex; gap: 6px; margin-top: 6px; }
