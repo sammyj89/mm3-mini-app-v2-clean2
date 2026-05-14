@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import HomeView from './components/HomeView.vue'
 import SlotCard from './components/SlotCard.vue'
 import ScannerView from './components/ScannerView.vue'
@@ -12,7 +12,10 @@ import { apiGet } from './services/api'
 
 const slots = ref({})
 const selectedSymbol = ref('')
-const currentTab = ref('home')
+const currentTab = ref(localStorage.getItem('mm3_lastTab') || 'home')
+watch(currentTab, (newTab) => {
+  localStorage.setItem('mm3_lastTab', newTab)
+})
 const equity = ref(0)
 const dailyPnl = ref(0)
 const connectionOk = ref(false)
