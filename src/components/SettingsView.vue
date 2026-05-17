@@ -9,7 +9,8 @@ const ladderSpacing = ref(1.0)
 const hwmEnabled = ref(true)
 const pnlTrailEnabled = ref(true)
 const hwmStartR = ref(0.8)
-const pnlStartUsd = ref(1.0)
+const pnlStartPct = ref(5.0)          // NEW: dynamic % of notional
+const pnlStartUsd = ref(1.0)           // fallback fixed USD
 const saving = ref(false)
 const message = ref('')
 const selectedSymbol = ref('')
@@ -26,12 +27,13 @@ initSymbol()
 
 async function loadSettings() {
   try {
-    const [slotsRes, spacingRes, hwmRes, pnlRes, rRes, usdRes] = await Promise.all([
+    const [slotsRes, spacingRes, hwmRes, pnlRes, rRes, pctRes, usdRes] = await Promise.all([
       apiGet('/api/config', { key: 'MM_MAX_SLOTS' }),
       apiGet('/api/config', { key: 'LADDER_SPACING_MULTIPLIER' }),
       apiGet('/api/config', { key: 'HWM_PROTECT_ENABLED' }),
       apiGet('/api/config', { key: 'PNL_TRAIL_ENABLED' }),
       apiGet('/api/config', { key: 'HWM_START_R' }),
+      apiGet('/api/config', { key: 'PNL_START_PCT' }),
       apiGet('/api/config', { key: 'PNL_START_USD' }),
     ])
     maxSlots.value = parseInt(slotsRes.value || '3')
@@ -39,6 +41,7 @@ async function loadSettings() {
     hwmEnabled.value = hwmRes.value === 'true'
     pnlTrailEnabled.value = pnlRes.value === 'true'
     hwmStartR.value = parseFloat(rRes.value || '0.8')
+    pnlStartPct.value = parseFloat(pctRes.value) || 5.0
     pnlStartUsd.value = parseFloat(usdRes.value || '1.0')
   } catch (e) { console.error(e) }
 }
@@ -55,6 +58,7 @@ async function saveSettings() {
       apiPost('/api/config', { key: 'HWM_PROTECT_ENABLED', value: hwmEnabled.value ? 'true' : 'false' }),
       apiPost('/api/config', { key: 'PNL_TRAIL_ENABLED', value: pnlTrailEnabled.value ? 'true' : 'false' }),
       apiPost('/api/config', { key: 'HWM_START_R', value: String(hwmStartR.value) }),
+      apiPost('/api/config', { key: 'PNL_START_PCT', value: String(pnlStartPct.value) }),
       apiPost('/api/config', { key: 'PNL_START_USD', value: String(pnlStartUsd.value) }),
     ])
     message.value = '✅ Settings saved'
@@ -156,10 +160,15 @@ async function addManualSymbol() {
           <input type="number" v-model.number="hwmStartR" step="0.1" class="input" />
         </div>
         <div>
-          <label class="metric-label" title="Minimum profit before PnL trailing activates.">PnL start $</label>
+          <label class="metric-label" title="Profit start % of current notional (overrides fixed $).">PnL start %</label>
+          <input type="number" v-model.number="pnlStartPct" step="0.5" min="0" max="20" class="input" />
+        </div>
+        <div>
+          <label class="metric-label" title="Fixed USD fallback (used only if % is 0).">PnL start $</label>
           <input type="number" v-model.number="pnlStartUsd" step="0.25" class="input" />
         </div>
       </div>
+      <p class="hint">If percentage >0, the bot uses (notional × %/100) to start trailing. Otherwise uses fixed $ threshold.</p>
     </div>
 
     <button class="btn save-btn" @click="saveSettings" :disabled="saving">💾 Save Settings</button>
@@ -181,7 +190,7 @@ input[type="range"] { flex: 1; accent-color: #00d4ff; }
 .toggle-row { display: flex; gap: 8px; margin-bottom: 12px; }
 .btn { flex: 1; padding: 10px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; color: #fff; background: #3742fa; }
 .btn.active { background: #00ff88; color: #000; }
-.metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.metrics { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 12px; }
 .metric-label { font-size: 10px; color: #8888aa; text-transform: uppercase; display: block; margin-bottom: 4px; }
 .save-btn { width: 100%; background: #00d4ff; color: #000; margin-bottom: 12px; }
 .message { text-align: center; margin-top: 10px; color: #00ff88; font-family: monospace; }
