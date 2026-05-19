@@ -94,11 +94,34 @@ onUnmounted(() => {
   clearInterval(timeAgoInterval)
 })
 
+// ---- Patched runScanner with timeout and detailed errors ----
 async function runScanner() {
+  if (scanning.value) return
   scanning.value = true
-  statusMsg.value = 'Scanning…'
+  statusMsg.value = 'Scanning… (may take 30-60 seconds)'
+  const startTime = Date.now()
+  
+  // Create an AbortController to timeout the fetch
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 70000) // 70 seconds timeout
+
   try {
-    const res = await apiPost('/api/run_screener')
+    // Use native fetch to allow abort, because apiPost doesn't expose signal.
+    // We'll still use the same API_BASE from the imported api module.
+    const API_BASE = (await import('../services/api')).API_BASE
+    const response = await fetch(`${API_BASE}/api/run_screener`, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: { 'Content-Type': 'application/json' }
+    })
+    clearTimeout(timeoutId)
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`)
+    }
+    const res = await response.json()
+
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
     if (res.success && res.data) {
       let picksList = []
       let timestamp = null
@@ -111,20 +134,29 @@ async function runScanner() {
       if (picksList.length) {
         picks.value = picksList
         lastScanTimestamp.value = timestamp || Math.floor(Date.now() / 1000)
-        statusMsg.value = ''
+        statusMsg.value = `Scan completed in ${elapsed}s – ${picksList.length} picks found`
       } else {
         picks.value = []
-        statusMsg.value = 'No suitable pairs found.'
+        statusMsg.value = 'No suitable pairs found (check scanner logs)'
       }
     } else {
       picks.value = []
-      statusMsg.value = 'No suitable pairs found.'
+      statusMsg.value = `Scanner returned no picks: ${res.message || 'unknown reason'}`
     }
   } catch (e) {
-    statusMsg.value = 'Error: ' + e.message
+    clearTimeout(timeoutId)
+    if (e.name === 'AbortError') {
+      statusMsg.value = 'Scanner timed out (over 70 sec). Try again later or check server logs.'
+    } else if (e.message === 'Failed to fetch') {
+      statusMsg.value = 'Network error: cannot reach bot. Check tunnel URL.'
+    } else {
+      statusMsg.value = `Error: ${e.message}`
+    }
+    console.error('Scanner error:', e)
+  } finally {
+    scanning.value = false
+    postEvent('web_app_trigger_haptic_feedback', { type: 'impact', impact_style: 'medium' })
   }
-  scanning.value = false
-  postEvent('web_app_trigger_haptic_feedback', { type: 'impact', impact_style: 'medium' })
 }
 
 async function replaceSlot(newSymbol) {
@@ -261,7 +293,7 @@ h3 { color: #00d4ff; font-size: 14px; margin-bottom: 10px; text-transform: upper
 .slot-right {
   display: flex;
   align-items: center;
-  gap: 6px;                   /* tighter gap between items */
+  gap: 6px;
   flex-shrink: 0;
   font-family: monospace;
   font-size: 13px;
@@ -270,7 +302,7 @@ h3 { color: #00d4ff; font-size: 14px; margin-bottom: 10px; text-transform: upper
   width: 80px;
   height: 36px;
   flex-shrink: 0;
-  overflow: hidden;   /* ← NEW: guarantee no overflow */
+  overflow: hidden;
 }
 .notional {
   min-width: 55px;
@@ -292,34 +324,20 @@ h3 { color: #00d4ff; font-size: 14px; margin-bottom: 10px; text-transform: upper
   justify-content: space-between;
   align-items: center;
 }
-.pick-main {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 2px;
-}
 .pick-info {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-}
-.pick-info {
-  flex: 1;                 /* take remaining space */
-  min-width: 0;            /* allow shrinking for ellipsis */
 }
 .pick-chart {
   flex-shrink: 0;
   width: 80px;
   height: 36px;
-  margin-left: 8px;        /* small gap from the text */
-}
-.pick-name-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 2px;
+  margin-left: 8px;
 }
 .pick-name {
-  max-width: 180px;          /* more room for pick names */
+  max-width: 180px;
   margin-bottom: 2px;
 }
 .score, .rvol { font-size: 10px; color: #8888aa; }
