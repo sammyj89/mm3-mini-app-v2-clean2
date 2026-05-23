@@ -1,6 +1,6 @@
 // Points to your LIVE main bot – no sandbox
 
-export const API_BASE = 'https://involves-memory-msie-kenny.trycloudflare.com'
+export const API_BASE = 'https://reprint-sporting-folks-activation.trycloudflare.com'
 
 export async function apiGet(path, params = {}) {
   const url = new URL(`${API_BASE}${path}`)
