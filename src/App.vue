@@ -8,7 +8,7 @@ import ChartView from './components/ChartView.vue'
 import SettingsView from './components/SettingsView.vue'
 import BottomControls from './components/BottomControls.vue'
 import ReleaseConfirm from './components/ReleaseConfirm.vue'
-import { apiGet } from './services/api'
+import { apiGet, autoResolveUrl } from './services/api'
 
 const slots = ref({})
 const selectedSymbol = ref('')
@@ -68,6 +68,7 @@ async function checkConnection() {
 
 let globalInterval = null
 onMounted(() => {
+  autoResolveUrl()   // silently update tunnel URL from Gist if VITE_GIST_ID is set
   loadGlobals()
   checkConnection()
   globalInterval = setInterval(() => {
