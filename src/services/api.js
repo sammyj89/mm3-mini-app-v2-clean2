@@ -7,7 +7,7 @@
 //
 // The Gist check runs once on app load and updates localStorage automatically.
 
-const COMPILED_DEFAULT = 'https://reprint-sporting-folks-activation.trycloudflare.com'
+const COMPILED_DEFAULT = 'https://rounds-smaller-teenage-inputs.trycloudflare.com'
 
 // Set VITE_GIST_ID in your .env.local → VITE_GIST_ID=abc123
 const GIST_ID = import.meta.env.VITE_GIST_ID || ''
