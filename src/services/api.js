@@ -1,46 +1,17 @@
-// api.js – auto-resolving tunnel URL
-//
-// Resolution order:
-//   1. localStorage override (set manually in Settings)
-//   2. GitHub Gist (auto-updated by start_tunnel.sh on every bot restart)
-//   3. Compiled-in default (fallback)
-//
-// The Gist check runs once on app load and updates localStorage automatically.
-
-const COMPILED_DEFAULT = 'https://lakes-richardson-ports-wisconsin.trycloudflare.com'
-
-// Set VITE_GIST_ID in your .env.local → VITE_GIST_ID=abc123
-const GIST_ID = import.meta.env.VITE_GIST_ID || ''
+// api.js – Standalone Web Dashboard API
 
 export function getApiBase() {
-  return localStorage.getItem('mm3_api_base') || COMPILED_DEFAULT
+  // If accessing over a tunnel or network, API is on the same origin
+  if (window.location.origin && window.location.protocol.startsWith('http')) {
+    return window.location.origin;
+  }
+  // Fallback for local development
+  return 'http://localhost:8000';
 }
 
 export function setApiBase(url) {
+  // Keep this for the Settings page manual override if you still want it
   localStorage.setItem('mm3_api_base', url.replace(/\/$/, ''))
-}
-
-// Called once on app load — silently updates URL from Gist if available
-export async function autoResolveUrl() {
-  if (!GIST_ID) return
-  try {
-    const res = await fetch(
-      `https://api.github.com/gists/${GIST_ID}`,
-      { headers: { Accept: 'application/vnd.github.v3+json' }, signal: AbortSignal.timeout(5000) }
-    )
-    if (!res.ok) return
-    const data = await res.json()
-    const content = data?.files?.['tunnel_url.txt']?.content?.trim()
-    if (content && content.startsWith('https://')) {
-      const current = localStorage.getItem('mm3_api_base')
-      if (current !== content) {
-        console.log(`[api] Auto-updated tunnel URL: ${content}`)
-        setApiBase(content)
-      }
-    }
-  } catch (e) {
-    // Gist unreachable — keep existing URL, no disruption
-  }
 }
 
 export async function apiGet(path, params = {}) {
@@ -73,5 +44,5 @@ export async function apiPostQuery(path, params = {}) {
   return res.json()
 }
 
-// Keep for backward compat (ScannerView uses it)
+// Keep for backward compat
 export const API_BASE = getApiBase()
