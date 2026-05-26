@@ -12,7 +12,7 @@ import { apiGet, autoResolveUrl } from './services/api'
 
 const slots = ref({})
 const selectedSymbol = ref('')
-const currentTab = ref(localStorage.getItem('mm3_lastTab') || 'home')
+const currentTab = ref(localStorage.getItem('mm3_lastTab') || 'scanner')
 watch(currentTab, (newTab) => {
   localStorage.setItem('mm3_lastTab', newTab)
 })
@@ -30,9 +30,13 @@ async function onSlotReleased() {
   await loadGlobals()
 }
 
-// Dark/light theme (unchanged)
 const theme = ref('dark')
-function toggleTheme() { /* ... */ }
+function toggleTheme() { theme.value = theme.value === 'dark' ? 'light' : 'dark' }
+
+function selectSymbol(sym) {
+  selectedSymbol.value = sym
+  currentTab.value = 'drill_down'
+}
 
 async function loadGlobals() {
   try {
@@ -48,7 +52,6 @@ async function loadGlobals() {
     }
   } catch (e) { console.error(e) }
 
-  // Compute daily PnL from exchange trades
   try {
     const tradesRes = await apiGet('/api/trades_exchange')
     if (tradesRes.success && tradesRes.data) {
@@ -68,7 +71,7 @@ async function checkConnection() {
 
 let globalInterval = null
 onMounted(() => {
-  autoResolveUrl()   // silently update tunnel URL from Gist if VITE_GIST_ID is set
+  autoResolveUrl()
   loadGlobals()
   checkConnection()
   globalInterval = setInterval(() => {
@@ -81,7 +84,6 @@ onUnmounted(() => clearInterval(globalInterval))
 const tabs = [
   { label: '🏠', key: 'home', name: 'Home' },
   { label: '📡', key: 'scanner', name: 'Scanner' },
-  { label: '🎰', key: 'slots', name: 'Slots' },
   { label: '📈', key: 'chart', name: 'Chart' },
   { label: '📋', key: 'trades', name: 'Trades' },
   { label: '⚙️', key: 'settings', name: 'Settings' }
@@ -90,6 +92,11 @@ const tabs = [
 
 <template>
   <div class="app" :class="theme">
+    <!-- Connection Lost Banner -->
+    <div v-if="!connectionOk" class="connection-banner" @click="currentTab = 'settings'">
+      ⚠️ Connection Lost — Tap here to update API URL
+    </div>
+
     <header class="header">
       <div class="title-row">
         <h1>📊 MM3 Terminal</h1>
@@ -105,22 +112,38 @@ const tabs = [
     </header>
 
     <main>
+      <!-- Home -->
       <div v-show="currentTab === 'home'"><HomeView /></div>
-      <div v-show="currentTab === 'scanner'"><ScannerView /></div>
-      <div v-show="currentTab === 'slots'" class="tab-content">
-        <SlotCard v-for="(data, sym) in slots" :key="sym"
-                  :symbol="sym" :initial-data="data"
-                  @release="handleRelease(sym)" />
+
+      <!-- Scanner: Overview of all slots (PASSES slots data!) -->
+      <div v-show="currentTab === 'scanner'">
+        <ScannerView :slots="slots" @select-symbol="selectSymbol" />
       </div>
+
+      <!-- Drill-Down: Single slot detail (PASSES slotData!) -->
+      <div v-show="currentTab === 'drill_down'">
+        <SlotCard
+          v-if="selectedSymbol && slots[selectedSymbol]"
+          :symbol="selectedSymbol"
+          :slotData="slots[selectedSymbol]"
+          @back="currentTab = 'scanner'"
+        />
+      </div>
+
+      <!-- Chart -->
       <div v-show="currentTab === 'chart'"><ChartView /></div>
+
+      <!-- Trades -->
       <div v-show="currentTab === 'trades'"><TradeHistory /></div>
+
+      <!-- Settings -->
       <div v-show="currentTab === 'settings'"><SettingsView :symbols="slots" /></div>
     </main>
 
     <nav class="bottom-bar">
       <button v-for="tab in tabs" :key="tab.key"
               @click="currentTab = tab.key"
-              :class="{ active: currentTab === tab.key }"
+              :class="{ active: currentTab === tab.key || (tab.key === 'scanner' && currentTab === 'drill_down') }"
               :title="tab.name">{{ tab.label }}</button>
     </nav>
 
@@ -163,4 +186,15 @@ main { flex:1; padding:12px; overflow-y:auto; }
   cursor:pointer; opacity:0.6; transition:0.2s;
 }
 .bottom-bar button.active { opacity:1; color:var(--accent); }
+.connection-banner {
+  background: #ff4444;
+  color: white;
+  text-align: center;
+  padding: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
 </style>
