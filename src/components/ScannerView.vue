@@ -156,11 +156,7 @@ const rotateSlot = async (oldSymbol) => {
 }
 
 const rotateToSymbol = async (newSymbol) => {
-  // Find the first active slot to replace
-  const propsData = defineProps
-  const currentSlots = Object.keys({{ activeSlots }}) // Hacky, better to pass activeSlots keys
-  // Simplest: prompt user which slot to replace
-  const oldSymbol = prompt(`Which slot to replace? (e.g. STABLE/USDT:USDT)`)
+  const oldSymbol = prompt(`Which active slot to replace? (e.g. STABLE/USDT:USDT)`)
   if (!oldSymbol) return
   try {
     await apiPostQuery('/api/rotate_symbol', { old: oldSymbol, new: newSymbol })
