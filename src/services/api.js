@@ -1,17 +1,20 @@
 // api.js – Standalone Web Dashboard API
 
 export function getApiBase() {
-  // If accessing over a tunnel or network, API is on the same origin
   if (window.location.origin && window.location.protocol.startsWith('http')) {
     return window.location.origin;
   }
-  // Fallback for local development
   return 'http://localhost:8000';
 }
 
 export function setApiBase(url) {
-  // Keep this for the Settings page manual override if you still want it
   localStorage.setItem('mm3_api_base', url.replace(/\/$/, ''))
+}
+
+// 🔧 FIX: No-op autoResolveUrl so App.vue import doesn't crash
+// URL is now resolved instantly via window.location.origin
+export async function autoResolveUrl() {
+  // No longer needed — getApiBase() uses window.location.origin
 }
 
 export async function apiGet(path, params = {}) {
@@ -44,5 +47,4 @@ export async function apiPostQuery(path, params = {}) {
   return res.json()
 }
 
-// Keep for backward compat
 export const API_BASE = getApiBase()
