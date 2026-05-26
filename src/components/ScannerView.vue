@@ -2,13 +2,13 @@
   <div class="scanner-view">
     <h2>Active Slots</h2>
     
-    <div v-if="!slots || Object.keys(slots).length === 0" class="empty-state">
+    <div v-if="!activeSlots || Object.keys(activeSlots).length === 0" class="empty-state">
       Loading slots or no active symbols...
     </div>
 
     <div v-else class="slots-grid">
       <div 
-        v-for="(slot, symbol) in slots" 
+        v-for="(slot, symbol) in activeSlots" 
         :key="symbol" 
         class="slot-card"
         @click="$emit('select-symbol', symbol)"
@@ -61,7 +61,7 @@
 import { apiPost, apiPostQuery } from '../services/api'
 
 defineProps({
-  slots: {
+  activeSlots: {
     type: Object,
     default: () => ({})
   }
@@ -69,9 +69,7 @@ defineProps({
 
 defineEmits(['select-symbol'])
 
-const formatSymbol = (sym) => {
-  return sym ? sym.split(':')[0] : ''
-}
+const formatSymbol = (sym) => sym ? sym.split(':')[0] : ''
 
 const fillPercent = (ladder) => {
   if (!ladder || ladder.total === 0) return 0
@@ -103,7 +101,6 @@ const releaseSlot = async (symbol) => {
 const rotateSlot = async (oldSymbol) => {
   const newSymbol = prompt(`Enter new symbol to rotate into (e.g., BTC/USDT:USDT):`)
   if (!newSymbol) return
-  
   try {
     await apiPostQuery('/api/rotate_symbol', { old: oldSymbol, new: newSymbol })
     alert('Rotation started.')
@@ -114,143 +111,32 @@ const rotateSlot = async (oldSymbol) => {
 </script>
 
 <style scoped>
-.scanner-view {
-  padding: 16px;
-}
-
-h2 {
-  color: #e0e0e0;
-  margin-bottom: 16px;
-}
-
-.empty-state {
-  color: #666;
-  text-align: center;
-  padding: 40px;
-  background: #16213e;
-  border-radius: 8px;
-}
-
-.slots-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.slot-card {
-  background: #1a1a2e;
-  border-radius: 12px;
-  padding: 16px;
-  border: 1px solid #2a2a4a;
-  cursor: pointer;
-  transition: border-color 0.2s;
-}
-
-.slot-card:hover {
-  border-color: #00d4ff;
-}
-
-.slot-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.symbol-name { 
-  margin: 0; 
-  color: #fff; 
-  font-size: 18px; 
-  font-weight: bold;
-}
-
-.header-actions { 
-  display: flex; 
-  gap: 8px; 
-}
-
-.btn-action {
-  padding: 6px 12px;
-  border-radius: 6px;
-  border: none;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: bold;
-  transition: filter 0.2s;
-}
-
-.btn-action:hover {
-  filter: brightness(1.2);
-}
-
+.scanner-view { padding: 16px; }
+h2 { color: #e0e0e0; margin-bottom: 16px; }
+.empty-state { color: #666; text-align: center; padding: 40px; background: #16213e; border-radius: 8px; }
+.slots-grid { display: flex; flex-direction: column; gap: 16px; }
+.slot-card { background: #1a1a2e; border-radius: 12px; padding: 16px; border: 1px solid #2a2a4a; cursor: pointer; transition: border-color 0.2s; }
+.slot-card:hover { border-color: #00d4ff; }
+.slot-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.symbol-name { margin: 0; color: #fff; font-size: 18px; font-weight: bold; }
+.header-actions { display: flex; gap: 8px; }
+.btn-action { padding: 6px 12px; border-radius: 6px; border: none; cursor: pointer; font-size: 12px; font-weight: bold; transition: filter 0.2s; }
+.btn-action:hover { filter: brightness(1.2); }
 .btn-rotate { background: #2a2a4a; color: #00d4ff; }
 .btn-release { background: #3a1a1a; color: #ff4444; }
-
-.dual-status {
-  display: flex;
-  gap: 12px;
-}
-
-.side-block {
-  flex: 1;
-  background: #16213e;
-  padding: 12px;
-  border-radius: 8px;
-  border-top: 3px solid;
-}
-
+.dual-status { display: flex; gap: 12px; }
+.side-block { flex: 1; background: #16213e; padding: 12px; border-radius: 8px; border-top: 3px solid; }
 .short-block { border-color: #ff4444; }
 .long-block { border-color: #00d4ff; }
-
-.side-title { 
-  font-size: 11px; 
-  font-weight: bold; 
-  color: #a0a0a0; 
-  margin-bottom: 8px;
-  text-transform: uppercase;
-}
-
-.side-data {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.pnl { 
-  font-size: 18px; 
-  font-weight: bold; 
-  font-family: monospace;
-}
-
+.side-title { font-size: 11px; font-weight: bold; color: #a0a0a0; margin-bottom: 8px; text-transform: uppercase; }
+.side-data { display: flex; flex-direction: column; gap: 6px; }
+.pnl { font-size: 18px; font-weight: bold; font-family: monospace; }
 .pnl.positive { color: #00ff88; }
 .pnl.negative { color: #ff4444; }
-
-.ladder-bar-container {
-  height: 6px;
-  background: #2a2a4a;
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.ladder-bar-fill { 
-  height: 100%; 
-  transition: width 0.3s ease;
-}
-
+.ladder-bar-container { height: 6px; background: #2a2a4a; border-radius: 3px; overflow: hidden; }
+.ladder-bar-fill { height: 100%; transition: width 0.3s ease; }
 .short-fill { background: #ff4444; }
 .long-fill { background: #00d4ff; }
-
-.ladder-text { 
-  font-size: 10px; 
-  color: #a0a0a0; 
-  text-align: right; 
-}
-
-.flat-state {
-  color: #555;
-  font-style: italic;
-  text-align: center;
-  padding: 12px 0;
-  font-size: 12px;
-}
+.ladder-text { font-size: 10px; color: #a0a0a0; text-align: right; }
+.flat-state { color: #555; font-style: italic; text-align: center; padding: 12px 0; font-size: 12px; }
 </style>

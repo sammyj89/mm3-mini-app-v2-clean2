@@ -117,7 +117,7 @@ const tabs = [
 
       <!-- Scanner: Overview of all slots -->
       <div v-show="currentTab === 'scanner'">
-        <ScannerView :slots="slots" @select-symbol="selectSymbol" />
+        <ScannerView :activeSlots="slots" @select-symbol="selectSymbol" />
       </div>
 
       <!-- Drill-Down: Single slot detail -->
