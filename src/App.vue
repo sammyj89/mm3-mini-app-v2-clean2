@@ -21,14 +21,8 @@ const dailyPnl = ref(0)
 const connectionOk = ref(false)
 const releaseTarget = ref('')
 
-function handleRelease(sym) {
-  releaseTarget.value = sym
-}
-
-async function onSlotReleased() {
-  releaseTarget.value = ''
-  await loadGlobals()
-}
+function handleRelease(sym) { releaseTarget.value = sym }
+async function onSlotReleased() { releaseTarget.value = ''; await loadGlobals() }
 
 const theme = ref('dark')
 function toggleTheme() { theme.value = theme.value === 'dark' ? 'light' : 'dark' }
@@ -74,10 +68,7 @@ onMounted(() => {
   autoResolveUrl()
   loadGlobals()
   checkConnection()
-  globalInterval = setInterval(() => {
-    loadGlobals()
-    checkConnection()
-  }, 10000)
+  globalInterval = setInterval(() => { loadGlobals(); checkConnection() }, 10000)
 })
 onUnmounted(() => clearInterval(globalInterval))
 
@@ -92,7 +83,6 @@ const tabs = [
 
 <template>
   <div class="app" :class="theme">
-    <!-- Connection Lost Banner -->
     <div v-if="!connectionOk" class="connection-banner" @click="currentTab = 'settings'">
       ⚠️ Connection Lost — Tap here to update API URL
     </div>
@@ -112,36 +102,21 @@ const tabs = [
     </header>
 
     <main>
-      <!-- Home -->
       <div v-show="currentTab === 'home'"><HomeView /></div>
-
-      <!-- Scanner: Overview of all slots -->
       <div v-show="currentTab === 'scanner'">
         <ScannerView :activeSlots="slots" @select-symbol="selectSymbol" />
       </div>
-
-      <!-- Drill-Down: Single slot detail -->
       <div v-show="currentTab === 'drill_down'">
         <div v-if="selectedSymbol && slots[selectedSymbol]">
-          <SlotCard
-            :symbol="selectedSymbol"
-            :slotData="slots[selectedSymbol]"
-            @back="currentTab = 'scanner'"
-          />
+          <SlotCard :symbol="selectedSymbol" :slotData="slots[selectedSymbol]" @back="currentTab = 'scanner'" />
         </div>
         <div v-else class="empty-state">
-          <p>No slot selected. Go back to Scanner.</p>
+          <p>No slot selected.</p>
           <button @click="currentTab = 'scanner'" class="btn-back">← Back to Scanner</button>
         </div>
       </div>
-
-      <!-- Chart -->
       <div v-show="currentTab === 'chart'"><ChartView /></div>
-
-      <!-- Trades -->
       <div v-show="currentTab === 'trades'"><TradeHistory /></div>
-
-      <!-- Settings -->
       <div v-show="currentTab === 'settings'"><SettingsView :symbols="slots" /></div>
     </main>
 
@@ -153,48 +128,28 @@ const tabs = [
     </nav>
 
     <BottomControls />
-
-    <ReleaseConfirm v-if="releaseTarget"
-                    :symbol="releaseTarget"
-                    @released="onSlotReleased" />
+    <ReleaseConfirm v-if="releaseTarget" :symbol="releaseTarget" @released="onSlotReleased" />
   </div>
 </template>
 
 <style>
-:root {
-  --bg: #1a1a2e; --card: #16213e; --text: #e0e0e0; --accent: #00d4ff;
-  --header-bg: #0f0f23; --border: #2a2a4a;
-}
-[data-theme="light"] {
-  --bg: #f0f2f5; --card: #ffffff; --text: #1a1a2e; --accent: #0077cc;
-  --header-bg: #e4e6eb; --border: #ccd0d5;
-}
+:root { --bg: #1a1a2e; --card: #16213e; --text: #e0e0e0; --accent: #00d4ff; --header-bg: #0f0f23; --border: #2a2a4a; }
+[data-theme="light"] { --bg: #f0f2f5; --card: #ffffff; --text: #1a1a2e; --accent: #0077cc; --header-bg: #e4e6eb; --border: #ccd0d5; }
 body { margin:0; font-family:system-ui; background:var(--bg); color:var(--text); }
 .app { max-width:600px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column; }
 .header { background:var(--header-bg); padding:12px 16px; border-bottom:1px solid var(--border); }
 .title-row { display:flex; justify-content:space-between; align-items:center; }
 h1 { color:var(--accent); font-size:20px; margin:0; }
 .status-dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
-.status-dot.green { background:#00ff88; }
-.status-dot.red { background:#ff4757; }
+.status-dot.green { background:#00ff88; } .status-dot.red { background:#ff4757; }
 .equity-bar { display:flex; justify-content:space-between; align-items:center; margin-top:6px; font-size:14px; font-family:monospace; }
-.green { color:#00ff88; }
-.red { color:#ff4757; }
+.green { color:#00ff88; } .red { color:#ff4757; }
 .theme-toggle { background:none; border:none; font-size:16px; cursor:pointer; }
 main { flex:1; padding:12px; overflow-y:auto; }
-.bottom-bar {
-  display:flex; justify-content:space-around; background:var(--header-bg);
-  border-top:1px solid var(--border); padding:6px 0;
-}
-.bottom-bar button {
-  flex:1; background:transparent; border:none; font-size:20px; color:var(--text);
-  cursor:pointer; opacity:0.6; transition:0.2s;
-}
+.bottom-bar { display:flex; justify-content:space-around; background:var(--header-bg); border-top:1px solid var(--border); padding:6px 0; }
+.bottom-bar button { flex:1; background:transparent; border:none; font-size:20px; color:var(--text); cursor:pointer; opacity:0.6; transition:0.2s; }
 .bottom-bar button.active { opacity:1; color:var(--accent); }
-.connection-banner {
-  background: #ff4444; color: white; text-align: center; padding: 12px;
-  font-weight: bold; cursor: pointer; position: sticky; top: 0; z-index: 100;
-}
+.connection-banner { background: #ff4444; color: white; text-align: center; padding: 12px; font-weight: bold; cursor: pointer; position: sticky; top: 0; z-index: 100; }
 .empty-state { text-align: center; padding: 40px; color: #666; }
 .btn-back { padding: 12px 24px; background: #2a2a4a; color: #fff; border: none; border-radius: 8px; cursor: pointer; margin-top: 12px; }
 </style>
