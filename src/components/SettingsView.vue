@@ -1,233 +1,247 @@
-<script setup>
-import { ref, onMounted } from 'vue'
-import { apiGet, apiPost, getApiBase, setApiBase } from '../services/api'
-
-const props = defineProps({ symbols: Object })
-
-const maxSlots = ref(3)
-const ladderSpacing = ref(1.0)
-const hwmEnabled = ref(true)
-const pnlTrailEnabled = ref(true)
-const hwmStartR = ref(0.8)
-const pnlStartPct = ref(5.0)
-const pnlStartUsd = ref(1.0)
-const saving = ref(false)
-const message = ref('')
-const selectedSymbol = ref('')
-const resetLoading = ref(false)
-const manualSymbol = ref('')
-
-// ── Tunnel URL ──
-const tunnelUrl = ref(getApiBase())
-const urlSaved = ref(false)
-
-function saveTunnelUrl() {
-  const trimmed = tunnelUrl.value.trim()
-  if (!trimmed) return
-  setApiBase(trimmed)
-  urlSaved.value = true
-  message.value = '✅ Tunnel URL saved — reload the app to apply'
-  setTimeout(() => { urlSaved.value = false }, 3000)
-}
-
-const initSymbol = () => {
-  const keys = Object.keys(props.symbols || {})
-  if (keys.length && !selectedSymbol.value) selectedSymbol.value = keys[0]
-}
-initSymbol()
-
-async function loadSettings() {
-  try {
-    const [slotsRes, spacingRes, hwmRes, pnlRes, rRes, pctRes, usdRes] = await Promise.all([
-      apiGet('/api/config', { key: 'MM_MAX_SLOTS' }),
-      apiGet('/api/config', { key: 'LADDER_SPACING_MULTIPLIER' }),
-      apiGet('/api/config', { key: 'HWM_PROTECT_ENABLED' }),
-      apiGet('/api/config', { key: 'PNL_TRAIL_ENABLED' }),
-      apiGet('/api/config', { key: 'HWM_START_R' }),
-      apiGet('/api/config', { key: 'PNL_START_PCT' }),
-      apiGet('/api/config', { key: 'PNL_START_USD' }),
-    ])
-    maxSlots.value = parseInt(slotsRes.value || '3')
-    ladderSpacing.value = parseFloat(spacingRes.value || '1.0')
-    hwmEnabled.value = hwmRes.value === 'true'
-    pnlTrailEnabled.value = pnlRes.value === 'true'
-    hwmStartR.value = parseFloat(rRes.value || '0.8')
-    pnlStartPct.value = parseFloat(pctRes.value) || 5.0
-    pnlStartUsd.value = parseFloat(usdRes.value || '1.0')
-  } catch (e) { console.error(e) }
-}
-
-onMounted(loadSettings)
-
-async function saveSettings() {
-  saving.value = true
-  message.value = ''
-  try {
-    await Promise.all([
-      apiPost('/api/config', { key: 'MM_MAX_SLOTS', value: String(maxSlots.value) }),
-      apiPost('/api/config', { key: 'LADDER_SPACING_MULTIPLIER', value: String(ladderSpacing.value) }),
-      apiPost('/api/config', { key: 'HWM_PROTECT_ENABLED', value: hwmEnabled.value ? 'true' : 'false' }),
-      apiPost('/api/config', { key: 'PNL_TRAIL_ENABLED', value: pnlTrailEnabled.value ? 'true' : 'false' }),
-      apiPost('/api/config', { key: 'HWM_START_R', value: String(hwmStartR.value) }),
-      apiPost('/api/config', { key: 'PNL_START_PCT', value: String(pnlStartPct.value) }),
-      apiPost('/api/config', { key: 'PNL_START_USD', value: String(pnlStartUsd.value) }),
-    ])
-    message.value = '✅ Settings saved'
-  } catch (e) { message.value = '❌ Save failed: ' + e.message }
-  saving.value = false
-}
-
-async function resetAll() {
-  if (!selectedSymbol.value) return
-  resetLoading.value = true
-  try {
-    await apiPost('/api/ladder/reset', { symbol: selectedSymbol.value })
-    message.value = '✅ Ladder reset (all)'
-  } catch (e) { message.value = '❌ Reset failed' }
-  resetLoading.value = false
-}
-
-async function resetRemaining() {
-  if (!selectedSymbol.value) return
-  resetLoading.value = true
-  try {
-    await apiPost('/api/ladder/reset', { symbol: selectedSymbol.value, mode: 'remaining' })
-    message.value = '✅ Remaining levels re‑anchored'
-  } catch (e) { message.value = '❌ Reset failed' }
-  resetLoading.value = false
-}
-
-async function addManualSymbol() {
-  const sym = manualSymbol.value.trim()
-  if (!sym) return
-  if (Object.keys(props.symbols || {}).length >= maxSlots.value) {
-    message.value = `Max ${maxSlots.value} slots reached`
-    return
-  }
-  try {
-    const res = await apiPost('/api/symbol', { symbol: sym })
-    if (res.success) {
-      message.value = `✅ Added ${sym}`
-      manualSymbol.value = ''
-      await loadSettings()
-    } else {
-      message.value = '❌ Failed to add symbol'
-    }
-  } catch (e) { message.value = '❌ Error: ' + e.message }
-}
-</script>
-
 <template>
-  <div class="settings-tab">
-
-    <!-- ── Tunnel URL (most important fix) ── -->
-    <div class="card url-card">
-      <h3>🔗 Bot Tunnel URL</h3>
-      <p class="hint">Update this every time the Cloudflare tunnel URL changes.</p>
-      <div class="url-row">
-        <input type="url" v-model="tunnelUrl" placeholder="https://xxxx.trycloudflare.com" class="input url-input" />
-        <button class="btn url-btn" :class="{ saved: urlSaved }" @click="saveTunnelUrl">
-          {{ urlSaved ? '✓' : 'Save' }}
-        </button>
-      </div>
-      <p class="hint current-url">Current: <code>{{ getApiBase() }}</code></p>
+  <div class="settings-container">
+    <h2>⚙️ Connection Settings</h2>
+    <p class="subtitle">Enter the backend API URL. This is your Cloudflare tunnel URL.</p>
+    
+    <div class="input-group">
+      <input 
+        v-model="apiUrl" 
+        placeholder="https://your-tunnel.trycloudflare.com" 
+        class="url-input"
+        @keyup.enter="saveAndReload"
+      />
+      <button @click="saveAndReload" class="save-btn">Save & Reload</button>
     </div>
 
-    <!-- Manual Add -->
-    <div class="card">
-      <h3>➕ Add Symbol</h3>
-      <div class="setting-row">
-        <input type="text" v-model="manualSymbol" placeholder="e.g. PEPE/USDT" class="input wide" />
-        <button class="btn small-btn" @click="addManualSymbol">Add</button>
-      </div>
+    <button @click="testConnection" class="test-btn" :disabled="testing">
+      {{ testing ? 'Testing...' : 'Test Connection' }}
+    </button>
+
+    <p v-if="testResult" :class="['result-msg', testResult.success ? 'success' : 'error']">
+      {{ testResult.message }}
+    </p>
+
+    <div class="helper-text">
+      <p><strong>How to find the current URL:</strong></p>
+      <ol>
+        <li>SSH into your server.</li>
+        <li>Run: <code>cat /tmp/tunnel_url.txt</code></li>
+        <li>Copy the URL and paste it above, then click "Save & Reload".</li>
+      </ol>
+      <p class="note">Note: Free Cloudflare tunnels generate a new URL every time they restart. You must update it here if the bot/tunnel restarts.</p>
     </div>
 
-    <!-- Slot Configuration -->
-    <div class="card">
-      <h3>⚙️ Slot Configuration</h3>
-      <div class="setting-row">
-        <label>Max active slots</label>
-        <input type="number" v-model.number="maxSlots" min="1" max="5" class="input" />
-      </div>
-      <p class="hint">Currently {{ Object.keys(symbols || {}).length }} slots active.</p>
+    <div class="danger-zone">
+      <h3>⚠️ Danger Zone</h3>
+      <button @click="clearAndReset" class="clear-btn">Clear URL & Reset to Default</button>
+      <p class="danger-text">This will delete your saved URL and revert to the compiled default.</p>
     </div>
-
-    <!-- Ladder -->
-    <div class="card">
-      <h3>🪜 Ladder</h3>
-      <div class="setting-row">
-        <label>Spacing: <strong>{{ ladderSpacing.toFixed(1) }}x</strong></label>
-        <input type="range" v-model.number="ladderSpacing" min="0.5" max="3.0" step="0.1" />
-      </div>
-      <div class="reset-section">
-        <label>Reset ladder for:</label>
-        <select v-model="selectedSymbol" class="symbol-select">
-          <option v-for="(_, sym) in symbols" :key="sym" :value="sym">{{ sym.split(':')[0] }}</option>
-        </select>
-        <div class="btn-row">
-          <button class="btn" @click="resetAll" :disabled="resetLoading">🔄 Reset All</button>
-          <button class="btn" @click="resetRemaining" :disabled="resetLoading">📊 Reset Remaining</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Trail -->
-    <div class="card">
-      <h3>🛡️ Trail</h3>
-      <div class="toggle-row">
-        <button :class="['btn', hwmEnabled ? 'active' : '']" @click="hwmEnabled = !hwmEnabled">HWM: {{ hwmEnabled ? 'ON' : 'OFF' }}</button>
-        <button :class="['btn', pnlTrailEnabled ? 'active' : '']" @click="pnlTrailEnabled = !pnlTrailEnabled">PnL: {{ pnlTrailEnabled ? 'ON' : 'OFF' }}</button>
-      </div>
-      <div class="metrics">
-        <div>
-          <label class="metric-label">HWM start R</label>
-          <input type="number" v-model.number="hwmStartR" step="0.1" class="input" />
-        </div>
-        <div>
-          <label class="metric-label">PnL start %</label>
-          <input type="number" v-model.number="pnlStartPct" step="0.5" min="0" max="20" class="input" />
-        </div>
-        <div>
-          <label class="metric-label">PnL start $</label>
-          <input type="number" v-model.number="pnlStartUsd" step="0.25" class="input" />
-        </div>
-      </div>
-      <p class="hint">If % &gt; 0, uses notional × %/100 to start trailing. Otherwise uses fixed $ threshold.</p>
-    </div>
-
-    <button class="btn save-btn" @click="saveSettings" :disabled="saving">💾 Save Settings</button>
-    <p class="message" v-if="message">{{ message }}</p>
   </div>
 </template>
 
+<script setup>
+import { ref } from 'vue'
+import { getApiBase, setApiBase } from '../services/api'
+
+const apiUrl = ref(getApiBase())
+const testing = ref(false)
+const testResult = ref(null)
+
+const saveAndReload = () => {
+  if (!apiUrl.value.startsWith('http')) {
+    testResult.value = { success: false, message: '❌ URL must start with http:// or https://' }
+    return
+  }
+  setApiBase(apiUrl.value) 
+  window.location.reload()
+}
+
+const testConnection = async () => {
+  testing.value = true
+  testResult.value = null
+  
+  // Test against the URL currently typed in the box, not the globally saved one
+  const cleanUrl = apiUrl.value.replace(/\/$/, '')
+  const testUrl = `${cleanUrl}/api/health`
+  
+  try {
+    const res = await fetch(testUrl, { signal: AbortSignal.timeout(5000) })
+    const data = await res.json()
+    if (data.status === 'ok') {
+      testResult.value = { success: true, message: '✅ Connection Successful! API is online.' }
+    } else {
+      testResult.value = { success: false, message: '❌ Connected, but API returned unexpected data.' }
+    }
+  } catch (err) {
+    testResult.value = { success: false, message: `❌ Failed to connect: ${err.message}` }
+  } finally {
+    testing.value = false
+  }
+}
+
+const clearAndReset = () => {
+  if (confirm('Are you sure you want to clear the saved URL? The app will reload.')) {
+    localStorage.removeItem('mm3_api_base')
+    window.location.reload()
+  }
+}
+</script>
+
 <style scoped>
-.settings-tab { padding: 12px; }
-.card { background: #16213e; border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
-h3 { color: #00d4ff; font-size: 14px; margin-bottom: 10px; text-transform: uppercase; }
-.url-card { border: 1px solid #00d4ff33; }
-.url-row { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
-.url-input { flex: 1; width: auto; font-size: 12px; }
-.url-btn { width: auto; padding: 8px 14px; flex-shrink: 0; transition: background 0.2s; }
-.url-btn.saved { background: #00ff88; color: #000; }
-.current-url { word-break: break-all; }
-.current-url code { color: #00d4ff; font-size: 11px; }
-.setting-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-.setting-row label { color: #e0e0e0; }
-.input { width: 80px; padding: 6px; background: #1a1a2e; border: 1px solid #2a2a4a; border-radius: 6px; color: #e0e0e0; font-size: 14px; }
-.input.wide { flex: 1; width: auto; }
-input[type="range"] { flex: 1; accent-color: #00d4ff; }
-.small-btn { width: auto; padding: 8px 16px; font-size: 13px; background: #3742fa; color: #fff; border: none; border-radius: 8px; cursor: pointer; }
-.hint { font-size: 11px; color: #8888aa; margin-top: 4px; }
-.toggle-row { display: flex; gap: 8px; margin-bottom: 12px; }
-.btn { flex: 1; padding: 10px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; color: #fff; background: #3742fa; }
-.btn.active { background: #00ff88; color: #000; }
-.metrics { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 12px; }
-.metric-label { font-size: 10px; color: #8888aa; text-transform: uppercase; display: block; margin-bottom: 4px; }
-.save-btn { width: 100%; background: #00d4ff; color: #000; margin-bottom: 12px; }
-.message { text-align: center; margin-top: 10px; color: #00ff88; font-family: monospace; }
-.reset-section { margin-top: 12px; }
-.reset-section label { color: #e0e0e0; font-size: 13px; margin-right: 8px; }
-.symbol-select { width: 100%; padding: 8px; background: #1a1a2e; color: #e0e0e0; border: 1px solid #2a2a4a; border-radius: 8px; margin: 8px 0; }
-.btn-row { display: flex; gap: 8px; }
-.btn-row .btn { flex: 1; }
+.settings-container {
+  padding: 24px;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+h2 {
+  margin-bottom: 8px;
+  color: #e0e0e0;
+}
+
+.subtitle {
+  color: #a0a0a0;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+.input-group {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.url-input {
+  flex: 1;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #444;
+  background: #1a1a2e;
+  color: #fff;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.url-input:focus {
+  outline: none;
+  border-color: #00d4ff;
+}
+
+.save-btn {
+  padding: 12px 24px;
+  background: #00d4ff;
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+
+.save-btn:hover {
+  background: #00b8d4;
+}
+
+.test-btn {
+  width: 100%;
+  padding: 12px;
+  background: #2a2a4a;
+  color: #fff;
+  border: 1px solid #444;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s;
+  margin-bottom: 16px;
+}
+
+.test-btn:hover:not(:disabled) {
+  background: #3a3a5a;
+}
+
+.test-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.result-msg {
+  text-align: center;
+  font-weight: bold;
+  margin-bottom: 16px;
+}
+
+.success {
+  color: #00ff88;
+}
+
+.error {
+  color: #ff4444;
+}
+
+.helper-text {
+  margin-top: 30px;
+  padding: 20px;
+  background: #16213e;
+  border-radius: 8px;
+  border-left: 4px solid #00d4ff;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #e0e0e0;
+}
+
+.helper-text ol {
+  padding-left: 20px;
+  margin: 10px 0;
+}
+
+.helper-text code {
+  background: #000;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #00d4ff;
+  font-family: monospace;
+}
+
+.note {
+  margin-top: 12px;
+  font-size: 12px;
+  color: #a0a0a0;
+  font-style: italic;
+}
+
+.danger-zone {
+  margin-top: 40px;
+  padding: 20px;
+  border: 1px solid #ff4444;
+  border-radius: 8px;
+  background: rgba(255, 68, 68, 0.05);
+}
+
+.danger-zone h3 {
+  color: #ff4444;
+  margin-bottom: 10px;
+  font-size: 16px;
+}
+
+.clear-btn {
+  padding: 10px 20px;
+  background: transparent;
+  color: #ff4444;
+  border: 1px solid #ff4444;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 8px;
+}
+
+.clear-btn:hover {
+  background: #ff4444;
+  color: #fff;
+}
+
+.danger-text {
+  font-size: 12px;
+  color: #a0a0a0;
+}
 </style>
