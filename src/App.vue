@@ -115,19 +115,24 @@ const tabs = [
       <!-- Home -->
       <div v-show="currentTab === 'home'"><HomeView /></div>
 
-      <!-- Scanner: Overview of all slots (PASSES slots data!) -->
+      <!-- Scanner: Overview of all slots -->
       <div v-show="currentTab === 'scanner'">
         <ScannerView :slots="slots" @select-symbol="selectSymbol" />
       </div>
 
-      <!-- Drill-Down: Single slot detail (PASSES slotData!) -->
+      <!-- Drill-Down: Single slot detail -->
       <div v-show="currentTab === 'drill_down'">
-        <SlotCard
-          v-if="selectedSymbol && slots[selectedSymbol]"
-          :symbol="selectedSymbol"
-          :slotData="slots[selectedSymbol]"
-          @back="currentTab = 'scanner'"
-        />
+        <div v-if="selectedSymbol && slots[selectedSymbol]">
+          <SlotCard
+            :symbol="selectedSymbol"
+            :slotData="slots[selectedSymbol]"
+            @back="currentTab = 'scanner'"
+          />
+        </div>
+        <div v-else class="empty-state">
+          <p>No slot selected. Go back to Scanner.</p>
+          <button @click="currentTab = 'scanner'" class="btn-back">← Back to Scanner</button>
+        </div>
       </div>
 
       <!-- Chart -->
@@ -187,14 +192,9 @@ main { flex:1; padding:12px; overflow-y:auto; }
 }
 .bottom-bar button.active { opacity:1; color:var(--accent); }
 .connection-banner {
-  background: #ff4444;
-  color: white;
-  text-align: center;
-  padding: 12px;
-  font-weight: bold;
-  cursor: pointer;
-  position: sticky;
-  top: 0;
-  z-index: 100;
+  background: #ff4444; color: white; text-align: center; padding: 12px;
+  font-weight: bold; cursor: pointer; position: sticky; top: 0; z-index: 100;
 }
+.empty-state { text-align: center; padding: 40px; color: #666; }
+.btn-back { padding: 12px 24px; background: #2a2a4a; color: #fff; border: none; border-radius: 8px; cursor: pointer; margin-top: 12px; }
 </style>
