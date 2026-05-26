@@ -1,41 +1,23 @@
-// tma.js – safe Telegram SDK initialisation (no errors outside Telegram)
-
-let postEvent = () => {}
-let themeParams = {
-  accentTextColor: '#00d4ff',
+// tma.js
+export let themeParams = {
   bgColor: '#1a1a2e',
-  buttonColor: '#3742fa',
-  buttonTextColor: '#ffffff',
-  textColor: '#e0e0e0',
-  hintColor: '#8888aa',
-  linkColor: '#00d4ff',
-  bottomBarBgColor: '#1a1a2e',
-  headerBgColor: '#1a1a2e',
-  destructiveTextColor: '#ff4757',
   secondaryBgColor: '#16213e',
-  sectionBgColor: '#16213e',
-  sectionHeaderTextColor: '#8888aa',
-  subtitleTextColor: '#8888aa',
-}
-let initDataRaw = ''
+  textColor: '#e0e0e0',
+  hintColor: '#a0a0a0',
+  accentTextColor: '#00d4ff',
+  buttonColor: '#00d4ff',
+  buttonTextColor: '#ffffff',
+};
 
-// Only activate the SDK inside Telegram
-if (window.Telegram?.WebApp?.initData) {
-  ;(async () => {
-    try {
-      const sdk = await import('@tma.js/sdk')
-      const { init, retrieveLaunchParams } = sdk
-      const launchParams = retrieveLaunchParams()
-      initDataRaw = launchParams.initDataRaw
-      themeParams = launchParams.themeParams
-      postEvent = sdk.postEvent
-      init()
-    } catch (e) {
-      console.log('Telegram SDK init failed, using mock theme')
-    }
-  })()
-} else {
-  console.log('Running outside Telegram – using mock theme.')
+// 🔧 FIX: Safely attempt Telegram SDK initialization
+try {
+  if (window.Telegram?.WebApp?.initData) {
+    // Dynamically import only if inside Telegram
+    import('@tma.js/sdk').then((sdk) => {
+      const tp = sdk.themeParams();
+      if (tp) themeParams = tp;
+    }).catch(() => {});
+  }
+} catch (e) {
+  // Not in Telegram, use mock theme
 }
-
-export { postEvent, themeParams, initDataRaw }
