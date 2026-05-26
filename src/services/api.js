@@ -28,7 +28,7 @@ export async function apiPost(path, body = {}) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: Object.keys(body).length ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.timeout(8000),
+    signal: AbortSignal.timeout(60000),  // 🔧 FIX: 60s for rotation/scanner
   })
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.json()
