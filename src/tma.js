@@ -9,10 +9,15 @@ export let themeParams = {
   buttonTextColor: '#ffffff',
 };
 
-// 🔧 FIX: Safely attempt Telegram SDK initialization
+// 🔧 FIX: No-op postEvent so components that import it don't crash
+export function postEvent(event, data) {
+  // Disabled — not running inside Telegram
+  // console.log(`[TMA] postEvent skipped: ${event}`, data)
+}
+
+// Safely attempt Telegram SDK initialization
 try {
   if (window.Telegram?.WebApp?.initData) {
-    // Dynamically import only if inside Telegram
     import('@tma.js/sdk').then((sdk) => {
       const tp = sdk.themeParams();
       if (tp) themeParams = tp;
