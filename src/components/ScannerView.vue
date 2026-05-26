@@ -1,260 +1,55 @@
-<script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { apiGet, apiPost, apiPostQuery } from '../services/api'
-import { postEvent } from '../tma'
-import MiniPriceChart from './MiniPriceChart.vue'
-
-const slots = ref({})
-const selectedSlot = ref('')
-const scanning = ref(false)
-const picks = ref([])
-const statusMsg = ref('')
-const lastScanTimestamp = ref(null)
-const maxSlots = ref(3)
-
-const timeAgo = computed(() => {
-  const ts = lastScanTimestamp.value
-  if (!ts) return 'Never'
-  const diffSec = Math.floor(Date.now() / 1000) - ts
-  if (diffSec < 60) return `${diffSec}s ago`
-  const min = Math.floor(diffSec / 60)
-  if (min < 60) return `${min}m ago`
-  const hr = Math.floor(min / 60)
-  return `${hr}h ago`
-})
-
-function slotMetrics(symData) {
-  const live = symData?.live || {}
-  const qty = Math.abs(live.net_qty || 0)
-  const mid = live.mid || 0
-  const avg = live.avg_entry || 0
-  const side = live.side || 'short'
-  if (!qty || !mid) return { notionalStr: 'FLAT', pnlStr: '' }
-
-  const usd = qty * mid
-  const notionalStr = usd >= 1000 ? `$${(usd / 1000).toFixed(1)}k` : `$${usd.toFixed(0)}`
-
-  let pnl = 0
-  if (avg > 0) {
-    pnl = side === 'short' ? (avg - mid) * qty : (mid - avg) * qty
-  }
-  const pnlStr = pnl >= 0 ? `+$${pnl.toFixed(2)}` : `-$${Math.abs(pnl).toFixed(2)}`
-
-  return { notionalStr, pnlStr }
-}
-
-async function loadConfig() {
-  try {
-    const res = await apiGet('/api/config', { key: 'MM_MAX_SLOTS' })
-    if (res.success && res.value) maxSlots.value = parseInt(res.value, 10) || 3
-  } catch (e) { /* ignore */ }
-}
-
-async function loadSlots() {
-  try {
-    const res = await apiGet('/api/status_all')
-    if (res.success && res.data) slots.value = { ...res.data }
-  } catch (e) { console.error('loadSlots error', e) }
-}
-
-async function fetchExistingPicks() {
-  try {
-    const res = await apiGet('/api/screener_top5')
-    if (res.success && res.data) {
-      const data = res.data
-      const picksList = Array.isArray(data) ? data : (data.picks || [])
-      if (picksList.length) {
-        picks.value = picksList
-        lastScanTimestamp.value = data.generated_ts || null
-      }
-    }
-  } catch (e) { /* ignore */ }
-}
-
-let refreshInterval = null
-let timeAgoInterval = null
-
-onMounted(() => {
-  loadConfig()
-  loadSlots()
-  fetchExistingPicks()
-
-  refreshInterval = setInterval(() => {
-    loadSlots()
-    fetchExistingPicks()
-  }, 15_000)
-
-  timeAgoInterval = setInterval(() => {
-    lastScanTimestamp.value = lastScanTimestamp.value
-  }, 1_000)
-})
-
-onUnmounted(() => {
-  clearInterval(refreshInterval)
-  clearInterval(timeAgoInterval)
-})
-
-// ---- Patched runScanner with timeout and detailed errors ----
-async function runScanner() {
-  if (scanning.value) return
-  scanning.value = true
-  statusMsg.value = 'Scanning… (may take 30-60 seconds)'
-  const startTime = Date.now()
-  
-  // Create an AbortController to timeout the fetch
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 70000) // 70 seconds timeout
-
-  try {
-    // Use native fetch to allow abort, because apiPost doesn't expose signal.
-    // We'll still use the same API_BASE from the imported api module.
-    const API_BASE = (await import('../services/api')).API_BASE
-    const response = await fetch(`${API_BASE}/api/run_screener`, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: { 'Content-Type': 'application/json' }
-    })
-    clearTimeout(timeoutId)
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`)
-    }
-    const res = await response.json()
-
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
-    if (res.success && res.data) {
-      let picksList = []
-      let timestamp = null
-      if (Array.isArray(res.data)) {
-        picksList = res.data
-      } else if (res.data.picks) {
-        picksList = res.data.picks
-        timestamp = res.data.generated_ts
-      }
-      if (picksList.length) {
-        picks.value = picksList
-        lastScanTimestamp.value = timestamp || Math.floor(Date.now() / 1000)
-        statusMsg.value = `Scan completed in ${elapsed}s – ${picksList.length} picks found`
-      } else {
-        picks.value = []
-        statusMsg.value = 'No suitable pairs found (check scanner logs)'
-      }
-    } else {
-      picks.value = []
-      statusMsg.value = `Scanner returned no picks: ${res.message || 'unknown reason'}`
-    }
-  } catch (e) {
-    clearTimeout(timeoutId)
-    if (e.name === 'AbortError') {
-      statusMsg.value = 'Scanner timed out (over 70 sec). Try again later or check server logs.'
-    } else if (e.message === 'Failed to fetch') {
-      statusMsg.value = 'Network error: cannot reach bot. Check tunnel URL.'
-    } else {
-      statusMsg.value = `Error: ${e.message}`
-    }
-    console.error('Scanner error:', e)
-  } finally {
-    scanning.value = false
-    postEvent('web_app_trigger_haptic_feedback', { type: 'impact', impact_style: 'medium' })
-  }
-}
-
-async function replaceSlot(newSymbol) {
-  if (!selectedSlot.value) {
-    statusMsg.value = 'Please select a current slot to replace.'
-    return
-  }
-  statusMsg.value = 'Rotating…'
-  try {
-    const res = await apiPostQuery('/api/rotate_symbol', { old: selectedSlot.value, new: newSymbol })
-    if (res.success) {
-      statusMsg.value = `✅ Replaced ${selectedSlot.value.split(':')[0]} → ${newSymbol.split(':')[0]}`
-      await loadSlots()
-    } else {
-      statusMsg.value = '❌ Rotation failed – check bot logs.'
-    }
-  } catch (e) {
-    statusMsg.value = 'Error: ' + e.message
-  }
-}
-
-async function addSlot(newSymbol) {
-  if (Object.keys(slots.value).length >= maxSlots.value) {
-    statusMsg.value = `All ${maxSlots.value} slots are full – replace one first.`
-    return
-  }
-  statusMsg.value = 'Adding…'
-  try {
-    const res = await apiPostQuery('/api/symbol', { symbol: newSymbol })
-    if (res.success) {
-      statusMsg.value = `✅ Added ${newSymbol}`
-      await loadSlots()
-    } else {
-      statusMsg.value = '❌ Failed to add symbol.'
-    }
-  } catch (e) {
-    statusMsg.value = 'Error: ' + e.message
-  }
-}
-</script>
-
 <template>
-  <div class="scanner-tab">
-    <!-- Current Slots -->
-    <div class="card">
-      <h3>🎯 Current Slots</h3>
-      <div v-if="Object.keys(slots).length">
-        <div v-for="(data, sym) in slots" :key="sym" class="slot-row">
-          <label class="slot-label">
-            <input type="radio" v-model="selectedSlot" :value="sym" />
-            <span class="symbol-name">{{ sym.split(':')[0].replace('/USDT', '') }}</span>
-            <div class="slot-right">
-              <MiniPriceChart :symbol="sym" timeframe="15m" :limit="24" />
-              <span class="notional">{{ slotMetrics(data).notionalStr }}</span>
-              <span
-                class="pnl"
-                :class="{
-                  green: (slotMetrics(data).pnlStr.startsWith('+')),
-                  red: (slotMetrics(data).pnlStr.startsWith('-'))
-                }"
-              >{{ slotMetrics(data).pnlStr || '' }}</span>
-            </div>
-          </label>
-        </div>
-      </div>
-      <p v-else>No active slots – add a symbol first.</p>
+  <div class="scanner-view">
+    <h2>Active Slots</h2>
+    
+    <div v-if="!slots || Object.keys(slots).length === 0" class="empty-state">
+      Loading slots or no active symbols...
     </div>
 
-    <!-- Scanner controls -->
-    <div class="card">
-      <h3>📡 Run Scanner</h3>
-      <button class="btn scan-btn" @click="runScanner" :disabled="scanning">
-        {{ scanning ? '⏳ Scanning…' : 'Start Scan' }}
-      </button>
-      <p class="scan-freshness" v-if="lastScanTimestamp !== null">Last scan: {{ timeAgo }}</p>
-      <p class="scan-freshness" v-else>No recent scan data.</p>
-      <p class="status" v-if="statusMsg">{{ statusMsg }}</p>
-    </div>
-
-    <!-- Empty state -->
-    <div v-if="picks.length === 0 && !scanning" class="card empty-state">
-      📡 No scanner data yet – tap <strong>Start Scan</strong> to find today’s top movers.
-    </div>
-
-    <!-- Scanner Results -->
-    <div v-if="picks.length" class="card">
-      <h3>🏆 Top Picks</h3>
-      <div class="pick-list">
-        <div v-for="p in picks" :key="p.symbol" class="pick-item">
-          <div class="pick-info">
-            <span class="symbol-name pick-name">{{ p.symbol.split(':')[0].replace('/USDT', '') }}</span>
-            <span class="score">Score: {{ p.score.toFixed(2) }}</span>
-            <span class="rvol">RVOL: {{ Math.round(p.rvol) }}%</span>
+    <div v-else class="slots-grid">
+      <div 
+        v-for="(slot, symbol) in slots" 
+        :key="symbol" 
+        class="slot-card"
+        @click="$emit('select-symbol', symbol)"
+      >
+        <div class="slot-header">
+          <h3 class="symbol-name">{{ formatSymbol(symbol) }}</h3>
+          <div class="header-actions" @click.stop>
+            <button @click="rotateSlot(symbol)" class="btn-action btn-rotate">🔄 Rotate</button>
+            <button @click="releaseSlot(symbol)" class="btn-action btn-release">🔓 Release</button>
           </div>
-          <MiniPriceChart :symbol="p.symbol" timeframe="15m" :limit="24" class="pick-chart" />
-          <div class="pick-actions">
-            <button class="btn small" @click="replaceSlot(p.symbol)" :disabled="!selectedSlot">🔄 Replace</button>
-            <button class="btn small" @click="addSlot(p.symbol)" v-if="Object.keys(slots).length < maxSlots">➕ Add</button>
+        </div>
+
+        <div class="dual-status">
+          <!-- SHORT SIDE -->
+          <div class="side-block short-block">
+            <div class="side-title">🔻 SHORT</div>
+            <div v-if="slot.live?.short_qty > 0" class="side-data">
+              <div class="pnl" :class="pnlClass(slot.live.short_qty, slot.live.short_avg, slot.live.mid, 'short')">
+                {{ formatPnl(slot.live.short_qty, slot.live.short_avg, slot.live.mid, 'short') }}
+              </div>
+              <div class="ladder-bar-container">
+                <div class="ladder-bar-fill short-fill" :style="{ width: fillPercent(slot.ladder_short) + '%' }"></div>
+              </div>
+              <div class="ladder-text">{{ slot.ladder_short?.consumed || 0 }}/{{ slot.ladder_short?.total || 0 }} lvl</div>
+            </div>
+            <div v-else class="flat-state">FLAT</div>
+          </div>
+
+          <!-- LONG SIDE -->
+          <div class="side-block long-block">
+            <div class="side-title">🔺 LONG</div>
+            <div v-if="slot.live?.long_qty > 0" class="side-data">
+              <div class="pnl" :class="pnlClass(slot.live.long_qty, slot.live.long_avg, slot.live.mid, 'long')">
+                {{ formatPnl(slot.live.long_qty, slot.live.long_avg, slot.live.mid, 'long') }}
+              </div>
+              <div class="ladder-bar-container">
+                <div class="ladder-bar-fill long-fill" :style="{ width: fillPercent(slot.ladder_long) + '%' }"></div>
+              </div>
+              <div class="ladder-text">{{ slot.ladder_long?.consumed || 0 }}/{{ slot.ladder_long?.total || 0 }} lvl</div>
+            </div>
+            <div v-else class="flat-state">FLAT</div>
           </div>
         </div>
       </div>
@@ -262,94 +57,200 @@ async function addSlot(newSymbol) {
   </div>
 </template>
 
+<script setup>
+import { apiPost, apiPostQuery } from '../services/api'
+
+defineProps({
+  slots: {
+    type: Object,
+    default: () => ({})
+  }
+})
+
+defineEmits(['select-symbol'])
+
+const formatSymbol = (sym) => {
+  return sym ? sym.split(':')[0] : ''
+}
+
+const fillPercent = (ladder) => {
+  if (!ladder || ladder.total === 0) return 0
+  return (ladder.consumed / ladder.total) * 100
+}
+
+const formatPnl = (qty, avg, mid, side) => {
+  if (!qty || qty <= 0 || !avg || !mid) return '$0.00'
+  let pnl = side === 'short' ? (avg - mid) * qty : (mid - avg) * qty
+  return `${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`
+}
+
+const pnlClass = (qty, avg, mid, side) => {
+  if (!qty || qty <= 0 || !avg || !mid) return ''
+  let pnl = side === 'short' ? (avg - mid) * qty : (mid - avg) * qty
+  return pnl >= 0 ? 'positive' : 'negative'
+}
+
+const releaseSlot = async (symbol) => {
+  if (!confirm(`Release ${formatSymbol(symbol)}? This will close positions and free the slot.`)) return
+  try {
+    await apiPost('/api/release_slot', { symbol })
+    alert('Slot released successfully.')
+  } catch (err) {
+    alert(`Failed to release: ${err.message}`)
+  }
+}
+
+const rotateSlot = async (oldSymbol) => {
+  const newSymbol = prompt(`Enter new symbol to rotate into (e.g., BTC/USDT:USDT):`)
+  if (!newSymbol) return
+  
+  try {
+    await apiPostQuery('/api/rotate_symbol', { old: oldSymbol, new: newSymbol })
+    alert('Rotation started.')
+  } catch (err) {
+    alert(`Failed to rotate: ${err.message}`)
+  }
+}
+</script>
+
 <style scoped>
-.scanner-tab { padding: 12px; }
-.card { background: #16213e; border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
-h3 { color: #00d4ff; font-size: 14px; margin-bottom: 10px; text-transform: uppercase; }
-
-/* ---- slot row ---- */
-.slot-row {
-  margin-bottom: 8px;
-}
-.slot-label {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  cursor: pointer;
+.scanner-view {
+  padding: 16px;
 }
 
-/* Pair name – takes all available space */
-.symbol-name {
-  flex: 1;
-  font-weight: bold;
-  font-size: 14px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Right side: sparkline + notional + PnL */
-.slot-right {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-  font-family: monospace;
-  font-size: 13px;
-}
-.slot-right .mini-chart {
-  width: 80px;
-  height: 36px;
-  flex-shrink: 0;
-  overflow: hidden;
-}
-.notional {
-  min-width: 55px;
-  text-align: right;
+h2 {
   color: #e0e0e0;
+  margin-bottom: 16px;
 }
-.pnl {
-  min-width: 65px;
-  text-align: right;
-}
-.pnl.green { color: #00ff88; }
-.pnl.red   { color: #ff4757; }
 
-/* ---- scanner picks ---- */
-.pick-item {
-  border-bottom: 1px solid #2a2a4a;
-  padding: 10px 0;
+.empty-state {
+  color: #666;
+  text-align: center;
+  padding: 40px;
+  background: #16213e;
+  border-radius: 8px;
+}
+
+.slots-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.slot-card {
+  background: #1a1a2e;
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid #2a2a4a;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.slot-card:hover {
+  border-color: #00d4ff;
+}
+
+.slot-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 16px;
 }
-.pick-info {
+
+.symbol-name { 
+  margin: 0; 
+  color: #fff; 
+  font-size: 18px; 
+  font-weight: bold;
+}
+
+.header-actions { 
+  display: flex; 
+  gap: 8px; 
+}
+
+.btn-action {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: bold;
+  transition: filter 0.2s;
+}
+
+.btn-action:hover {
+  filter: brightness(1.2);
+}
+
+.btn-rotate { background: #2a2a4a; color: #00d4ff; }
+.btn-release { background: #3a1a1a; color: #ff4444; }
+
+.dual-status {
+  display: flex;
+  gap: 12px;
+}
+
+.side-block {
   flex: 1;
-  min-width: 0;
+  background: #16213e;
+  padding: 12px;
+  border-radius: 8px;
+  border-top: 3px solid;
+}
+
+.short-block { border-color: #ff4444; }
+.long-block { border-color: #00d4ff; }
+
+.side-title { 
+  font-size: 11px; 
+  font-weight: bold; 
+  color: #a0a0a0; 
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.side-data {
   display: flex;
   flex-direction: column;
+  gap: 6px;
 }
-.pick-chart {
-  flex-shrink: 0;
-  width: 80px;
-  height: 36px;
-  margin-left: 8px;
-}
-.pick-name {
-  max-width: 180px;
-  margin-bottom: 2px;
-}
-.score, .rvol { font-size: 10px; color: #8888aa; }
-.pick-actions { display: flex; gap: 6px; margin-top: 6px; }
 
-/* ---- buttons ---- */
-.btn { width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; color: #fff; background: #3742fa; margin-bottom: 6px; }
-.scan-btn { background: #00d4ff; color: #000; }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.small { padding: 8px 12px; font-size: 12px; width: auto; }
+.pnl { 
+  font-size: 18px; 
+  font-weight: bold; 
+  font-family: monospace;
+}
 
-.status { color: #ffa502; font-size: 12px; margin-top: 6px; }
-.scan-freshness { font-size: 12px; color: #aaa; margin-top: 4px; }
-.empty-state { text-align: center; padding: 20px; color: #aaa; }
+.pnl.positive { color: #00ff88; }
+.pnl.negative { color: #ff4444; }
+
+.ladder-bar-container {
+  height: 6px;
+  background: #2a2a4a;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.ladder-bar-fill { 
+  height: 100%; 
+  transition: width 0.3s ease;
+}
+
+.short-fill { background: #ff4444; }
+.long-fill { background: #00d4ff; }
+
+.ladder-text { 
+  font-size: 10px; 
+  color: #a0a0a0; 
+  text-align: right; 
+}
+
+.flat-state {
+  color: #555;
+  font-style: italic;
+  text-align: center;
+  padding: 12px 0;
+  font-size: 12px;
+}
 </style>
