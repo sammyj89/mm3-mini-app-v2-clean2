@@ -10,9 +10,20 @@
       </div>
       <div v-if="screenerPicks.length > 0" class="screener-list">
         <div v-for="pick in screenerPicks" :key="pick.symbol" class="screener-item">
-          <span class="pick-symbol">{{ formatSymbol(pick.symbol) }}</span>
-          <span class="pick-score">{{ pick.score?.toFixed(1) || '-' }}</span>
-          <button @click="rotateToSymbol(pick.symbol)" class="btn-rotate-small">Rotate In</button>
+          <div class="pick-info">
+            <span class="pick-symbol">{{ formatSymbol(pick.symbol) }}</span>
+            <span class="pick-score">Score: {{ pick.score?.toFixed(1) || '-' }}</span>
+          </div>
+          <div class="slot-buttons">
+            <button 
+              v-for="(sym, idx) in slotList" 
+              :key="idx" 
+              @click="rotateSlot(sym, pick.symbol)"
+              class="btn-slot"
+            >
+              Slot {{ idx + 1 }}
+            </button>
+          </div>
         </div>
       </div>
       <div v-else class="empty-state-small">No screener data. Click Run Scan.</div>
@@ -38,7 +49,7 @@
           <div class="slot-header">
             <h3 class="symbol-name">{{ formatSymbol(symbol) }}</h3>
             <div class="header-actions" @click.stop>
-              <button @click="rotateSlot(symbol)" class="btn-action btn-rotate">🔄 Rotate</button>
+              <button @click="rotateSlotPrompt(symbol)" class="btn-action btn-rotate">🔄 Rotate</button>
               <button @click="releaseSlot(symbol)" class="btn-action btn-release">🔓 Release</button>
             </div>
           </div>
@@ -81,10 +92,10 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { apiGet, apiPost, apiPostQuery } from '../services/api'
 
-defineProps({
+const props = defineProps({
   activeSlots: {
     type: Object,
     default: () => ({})
@@ -95,6 +106,9 @@ defineEmits(['select-symbol'])
 
 const screenerPicks = ref([])
 const screenerLoading = ref(false)
+
+// Computed list of active slot symbols for the buttons
+const slotList = computed(() => Object.keys(props.activeSlots))
 
 onMounted(async () => {
   try {
@@ -146,18 +160,19 @@ const releaseSlot = async (symbol) => {
   } catch (err) { alert(`Failed: ${err.message}`) }
 }
 
-const rotateSlot = async (oldSymbol) => {
-  const newSymbol = prompt(`Enter new symbol to rotate into:`)
-  if (!newSymbol) return
+// 🆕 One-click rotation from Screener pick to specific Slot
+const rotateSlot = async (oldSymbol, newSymbol) => {
+  if (!confirm(`Rotate Slot ${formatSymbol(oldSymbol)} → ${formatSymbol(newSymbol)}?`)) return
   try {
     await apiPostQuery('/api/rotate_symbol', { old: oldSymbol, new: newSymbol })
     alert('Rotation started.')
   } catch (err) { alert(`Failed: ${err.message}`) }
 }
 
-const rotateToSymbol = async (newSymbol) => {
-  const oldSymbol = prompt(`Which active slot to replace? (e.g. STABLE/USDT:USDT)`)
-  if (!oldSymbol) return
+// Manual rotation (typing new symbol)
+const rotateSlotPrompt = async (oldSymbol) => {
+  const newSymbol = prompt(`Enter new symbol to rotate into ${formatSymbol(oldSymbol)} (e.g., BTC):`)
+  if (!newSymbol) return
   try {
     await apiPostQuery('/api/rotate_symbol', { old: oldSymbol, new: newSymbol })
     alert('Rotation started.')
@@ -171,14 +186,17 @@ const rotateToSymbol = async (newSymbol) => {
 .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 h2 { color: #e0e0e0; margin: 0; font-size: 18px; }
 
-.btn-run { padding: 8px 16px; background: #00d4ff; color: #000; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+.btn-run { padding: 8px 16px; background: #00d4ff; color: #000; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; }
 .btn-run:disabled { opacity: 0.5; }
 
-.screener-list { display: flex; flex-direction: column; gap: 6px; }
-.screener-item { display: flex; justify-content: space-between; align-items: center; background: #16213e; padding: 8px 12px; border-radius: 6px; }
-.pick-symbol { font-weight: bold; color: #fff; }
-.pick-score { color: #a0a0a0; font-size: 12px; }
-.btn-rotate-small { padding: 4px 10px; background: #2a2a4a; color: #00d4ff; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; }
+.screener-list { display: flex; flex-direction: column; gap: 8px; }
+.screener-item { display: flex; justify-content: space-between; align-items: center; background: #16213e; padding: 10px 12px; border-radius: 8px; border-left: 3px solid #00d4ff; }
+.pick-info { display: flex; flex-direction: column; gap: 2px; }
+.pick-symbol { font-weight: bold; color: #fff; font-size: 14px; }
+.pick-score { color: #a0a0a0; font-size: 11px; font-family: monospace; }
+.slot-buttons { display: flex; gap: 4px; }
+.btn-slot { padding: 6px 10px; background: #2a2a4a; color: #00d4ff; border: 1px solid #00d4ff33; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold; }
+.btn-slot:hover { background: #00d4ff; color: #000; }
 
 .empty-state-small { color: #555; font-size: 12px; text-align: center; padding: 12px; background: #16213e; border-radius: 6px; }
 .empty-state { color: #666; text-align: center; padding: 40px; background: #16213e; border-radius: 8px; }
