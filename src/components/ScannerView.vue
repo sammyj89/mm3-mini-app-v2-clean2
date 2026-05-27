@@ -1,6 +1,6 @@
 <template>
   <div class="scanner-view">
-    <!-- SCANNER SECTION -->
+    <!-- SCREENER SECTION -->
     <div class="section">
       <div class="section-header">
         <h2>🔍 Screener</h2>
@@ -27,6 +27,34 @@
         </div>
       </div>
       <div v-else class="empty-state-small">No screener data. Click Run Scan.</div>
+    </div>
+
+    <!-- 🆕 CUSTOM ROTATE SECTION -->
+    <div class="section custom-rotate-section">
+      <h3>➕ Custom Rotate</h3>
+      <div class="custom-rotate-controls">
+        <input 
+          v-model="customSymbol" 
+          placeholder="Enter symbol, e.g. BTC" 
+          class="custom-input" 
+          @keyup.enter="rotateCustomToSlot"
+        />
+        <select v-model="selectedSlotSymbol" class="slot-select">
+          <option v-for="sym in slotList" :key="sym" :value="sym">
+            {{ formatSymbol(sym) }}
+          </option>
+        </select>
+        <button 
+          @click="rotateCustomToSlot" 
+          class="btn-rotate-custom" 
+          :disabled="!customSymbol.trim() || !selectedSlotSymbol"
+        >
+          Rotate
+        </button>
+      </div>
+      <div v-if="slotList.length === 0" class="empty-state-small">
+        No active slots available to rotate into.
+      </div>
     </div>
 
     <hr class="divider" />
@@ -102,10 +130,14 @@ const props = defineProps({
   }
 })
 
-defineEmits(['select-symbol'])
+const emit = defineEmits(['select-symbol', 'refresh'])
 
 const screenerPicks = ref([])
 const screenerLoading = ref(false)
+
+// Custom rotate state
+const customSymbol = ref('')
+const selectedSlotSymbol = ref(null)
 
 // Computed list of active slot symbols for the buttons
 const slotList = computed(() => Object.keys(props.activeSlots))
@@ -157,15 +189,17 @@ const releaseSlot = async (symbol) => {
   try {
     await apiPost('/api/release_slot', { symbol })
     alert('Slot released.')
+    emit('refresh')
   } catch (err) { alert(`Failed: ${err.message}`) }
 }
 
-// 🆕 One-click rotation from Screener pick to specific Slot
+// One-click rotation from Screener pick to specific Slot
 const rotateSlot = async (oldSymbol, newSymbol) => {
   if (!confirm(`Rotate Slot ${formatSymbol(oldSymbol)} → ${formatSymbol(newSymbol)}?`)) return
   try {
     await apiPostQuery('/api/rotate_symbol', { old: oldSymbol, new: newSymbol })
     alert('Rotation started.')
+    emit('refresh')
   } catch (err) { alert(`Failed: ${err.message}`) }
 }
 
@@ -176,6 +210,24 @@ const rotateSlotPrompt = async (oldSymbol) => {
   try {
     await apiPostQuery('/api/rotate_symbol', { old: oldSymbol, new: newSymbol })
     alert('Rotation started.')
+    emit('refresh')
+  } catch (err) { alert(`Failed: ${err.message}`) }
+}
+
+// 🆕 Rotate custom symbol into selected slot
+const rotateCustomToSlot = async () => {
+  const newSymbol = customSymbol.value.trim()
+  const oldSymbol = selectedSlotSymbol.value
+  if (!newSymbol || !oldSymbol) return
+  if (!confirm(`Rotate slot ${formatSymbol(oldSymbol)} → ${newSymbol}?`)) return
+  try {
+    await apiPostQuery('/api/rotate_symbol', { old: oldSymbol, new: newSymbol })
+    alert('Rotation started.')
+    // Clear input after successful rotation
+    customSymbol.value = ''
+    // Optionally keep the same slot selected? We'll reset to first slot if exists.
+    if (slotList.value.length) selectedSlotSymbol.value = slotList.value[0]
+    emit('refresh')
   } catch (err) { alert(`Failed: ${err.message}`) }
 }
 </script>
@@ -202,6 +254,64 @@ h2 { color: #e0e0e0; margin: 0; font-size: 18px; }
 .empty-state { color: #666; text-align: center; padding: 40px; background: #16213e; border-radius: 8px; }
 
 .divider { border: 0; border-top: 1px solid #2a2a4a; margin: 20px 0; }
+
+/* Custom rotate styles */
+.custom-rotate-section {
+  background: #0f1123;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid #2a2a4a;
+  margin-top: 8px;
+}
+.custom-rotate-section h3 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  color: #ccc;
+}
+.custom-rotate-controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.custom-input {
+  flex: 2;
+  min-width: 120px;
+  background: #1a1a2e;
+  border: 1px solid #2a2a4a;
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: #fff;
+  font-size: 13px;
+}
+.custom-input:focus {
+  outline: none;
+  border-color: #00d4ff;
+}
+.slot-select {
+  flex: 1;
+  background: #1a1a2e;
+  border: 1px solid #2a2a4a;
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+}
+.btn-rotate-custom {
+  background: #00d4ff;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-weight: bold;
+  color: #000;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.btn-rotate-custom:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
 .slots-grid { display: flex; flex-direction: column; gap: 12px; }
 .slot-card { background: #1a1a2e; border-radius: 12px; padding: 16px; border: 1px solid #2a2a4a; cursor: pointer; transition: border-color 0.2s; }
