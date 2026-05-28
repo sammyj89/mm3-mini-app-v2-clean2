@@ -39,7 +39,7 @@ export async function apiPostQuery(path, params = {}) {
   Object.entries(params).forEach(([k, v]) => url.searchParams.append(k, v))
   const res = await fetch(url.toString(), {
     method: 'POST',
-    signal: AbortSignal.timeout(8000),
+    signal: AbortSignal.timeout(90000), // 90s — rotation can take time
   })
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.json()
