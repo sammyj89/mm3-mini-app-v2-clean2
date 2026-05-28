@@ -9,19 +9,34 @@
         </button>
       </div>
       <div v-if="screenerPicks.length > 0" class="screener-list">
+        <!-- Free slot badge -->
+        <div v-if="freeSlotCount > 0" class="free-slot-hint">
+          ✅ {{ freeSlotCount }} free slot{{ freeSlotCount > 1 ? 's' : '' }} available — tap ➕ to add a pair
+        </div>
         <div v-for="pick in screenerPicks" :key="pick.symbol" class="screener-item">
           <div class="pick-info">
             <span class="pick-symbol">{{ formatSymbol(pick.symbol) }}</span>
             <span class="pick-score">Score: {{ pick.score?.toFixed(1) || '-' }}</span>
           </div>
           <div class="slot-buttons">
+            <!-- ➕ Free slot button — shown when slots < MAX -->
+            <button
+              v-if="freeSlotCount > 0"
+              @click="addToFreeSlot(pick.symbol)"
+              class="btn-slot btn-add"
+              :disabled="addingSymbol === pick.symbol"
+            >
+              {{ addingSymbol === pick.symbol ? '⏳' : '➕' }}
+            </button>
+            <!-- Rotate into existing slots -->
             <button
               v-for="(sym, idx) in slotList"
               :key="idx"
               @click="rotateSlot(sym, pick.symbol)"
               class="btn-slot"
+              :disabled="rotatingSlot === sym"
             >
-              Slot {{ idx + 1 }}
+              {{ rotatingSlot === sym ? '⏳' : `Slot ${idx + 1}` }}
             </button>
           </div>
         </div>
@@ -142,8 +157,13 @@ const rotatingSlot = ref('') // tracks which slot is currently rotating
 const customSymbol = ref('')
 const selectedSlotSymbol = ref(null)
 
+const MAX_SLOTS = 3
+
 // Computed list of active slot symbols for the buttons
 const slotList = computed(() => Object.keys(props.activeSlots))
+
+// How many free slots are available
+const freeSlotCount = computed(() => Math.max(0, MAX_SLOTS - slotList.value.length))
 
 onMounted(async () => {
   try {
@@ -153,6 +173,22 @@ onMounted(async () => {
     }
   } catch { console.warn('Failed to load screener data') }
 })
+
+// Add screener pick directly into a free slot
+const addingSymbol = ref('') // tracks which symbol is being added
+const addToFreeSlot = async (symbol) => {
+  if (!confirm(`Add ${formatSymbol(symbol)} to a new slot?`)) return
+  addingSymbol.value = symbol
+  try {
+    await apiPost('/api/symbol', { symbol })
+    alert(`${formatSymbol(symbol)} added successfully.`)
+    emit('refresh')
+  } catch (err) {
+    alert(`Failed to add: ${errorMsg(err)}`)
+  } finally {
+    addingSymbol.value = ''
+  }
+}
 
 const runScreener = async () => {
   screenerLoading.value = true
@@ -177,7 +213,7 @@ const fillPercent = (ladder) => {
 
 const formatPnl = (qty, avg, mid, side) => {
   if (!qty || qty <= 0 || !avg || !mid) return '$0.00'
-  let pnl = side === 'short' ? (avg - mid) * qty : (mid - avg) * qty
+  const pnl = side === 'short' ? (avg - mid) * qty : (mid - avg) * qty
   return `${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`
 }
 
@@ -263,8 +299,13 @@ h2 { color: #e0e0e0; margin: 0; font-size: 18px; }
 .slot-buttons { display: flex; gap: 4px; }
 .btn-slot { padding: 6px 10px; background: #2a2a4a; color: #00d4ff; border: 1px solid #00d4ff33; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold; }
 .btn-slot:hover { background: #00d4ff; color: #000; }
+.btn-slot:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-add { background: #0d2b1a; color: #00ff88; border-color: #00ff8844; font-size: 14px; }
+.btn-add:hover { background: #00ff88; color: #000; }
+.btn-add:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .empty-state-small { color: #555; font-size: 12px; text-align: center; padding: 12px; background: #16213e; border-radius: 6px; }
+.free-slot-hint { font-size: 11px; color: #00ff88; background: #0d2b1a; border: 1px solid #00ff8833; border-radius: 6px; padding: 6px 10px; margin-bottom: 8px; text-align: center; }
 .empty-state { color: #666; text-align: center; padding: 40px; background: #16213e; border-radius: 8px; }
 
 .divider { border: 0; border-top: 1px solid #2a2a4a; margin: 20px 0; }
