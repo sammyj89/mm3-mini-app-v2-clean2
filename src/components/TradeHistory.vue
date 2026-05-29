@@ -41,10 +41,12 @@ function loadMore() { currentPage.value++ }
 
 let interval = null
 async function loadTrades() {
-  const res = await apiGet('/api/trades_exchange')
-  trades.value = res.data || []
+  try {
+    const res = await apiGet('/api/trades_exchange')
+    trades.value = res.data || []
+  } catch (e) { console.error('loadTrades error', e) }
 }
-onMounted(() => { loadTrades(); interval = setInterval(loadTrades, 10000) })
+onMounted(() => { loadTrades(); interval = setInterval(loadTrades, 30000) })
 onUnmounted(() => clearInterval(interval))
 </script>
 

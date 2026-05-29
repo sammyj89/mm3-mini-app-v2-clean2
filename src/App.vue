@@ -34,7 +34,10 @@ function selectSymbol(sym) {
 
 async function loadGlobals() {
   try {
-    const res = await apiGet('/api/status_all')
+    const [res, tradesRes] = await Promise.all([
+      apiGet('/api/status_all'),
+      apiGet('/api/trades_exchange'),
+    ])
     if (res.success && res.data) {
       slots.value = res.data
       const keys = Object.keys(res.data)
@@ -44,16 +47,12 @@ async function loadGlobals() {
         equity.value = slots.value[firstKey].equity || 0
       }
     }
-  } catch (e) { console.error(e) }
-
-  try {
-    const tradesRes = await apiGet('/api/trades_exchange')
     if (tradesRes.success && tradesRes.data) {
       const oneDayAgo = Date.now() / 1000 - 86400
       const todayTrades = tradesRes.data.filter(t => t.ts > oneDayAgo)
       dailyPnl.value = todayTrades.reduce((sum, t) => sum + (t.pnl || 0), 0)
     }
-  } catch (e) { console.error('header pnl error', e) }
+  } catch (e) { console.error('loadGlobals error', e) }
 }
 
 async function checkConnection() {
@@ -102,11 +101,11 @@ const tabs = [
     </header>
 
     <main>
-      <div v-show="currentTab === 'home'"><HomeView /></div>
-      <div v-show="currentTab === 'scanner'">
+      <div v-if="currentTab === 'home'"><HomeView /></div>
+      <div v-if="currentTab === 'scanner'">
         <ScannerView :activeSlots="slots" @select-symbol="selectSymbol" />
       </div>
-      <div v-show="currentTab === 'drill_down'">
+      <div v-if="currentTab === 'drill_down'">
         <div v-if="selectedSymbol && slots[selectedSymbol]">
           <SlotCard :symbol="selectedSymbol" :slotData="slots[selectedSymbol]" @back="currentTab = 'scanner'" />
         </div>
@@ -115,9 +114,9 @@ const tabs = [
           <button @click="currentTab = 'scanner'" class="btn-back">← Back to Scanner</button>
         </div>
       </div>
-      <div v-show="currentTab === 'chart'"><ChartView /></div>
-      <div v-show="currentTab === 'trades'"><TradeHistory /></div>
-      <div v-show="currentTab === 'settings'"><SettingsView :symbols="slots" /></div>
+      <div v-if="currentTab === 'chart'"><ChartView /></div>
+      <div v-if="currentTab === 'trades'"><TradeHistory /></div>
+      <div v-if="currentTab === 'settings'"><SettingsView :symbols="slots" /></div>
     </main>
 
     <nav class="bottom-bar">
