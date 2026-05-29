@@ -48,8 +48,10 @@ async function loadGlobals() {
       }
     }
     if (tradesRes.success && tradesRes.data) {
-      const oneDayAgo = Date.now() / 1000 - 86400
-      const todayTrades = tradesRes.data.filter(t => t.ts > oneDayAgo)
+      // Use midnight of today (local time) not rolling 24h window
+      const now = new Date()
+      const midnightTs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000
+      const todayTrades = tradesRes.data.filter(t => t.ts >= midnightTs)
       dailyPnl.value = todayTrades.reduce((sum, t) => sum + (t.pnl || 0), 0)
     }
   } catch (e) { console.error('loadGlobals error', e) }
