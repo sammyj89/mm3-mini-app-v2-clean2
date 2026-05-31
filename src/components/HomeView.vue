@@ -28,6 +28,21 @@ const riskStatus = ref({
 // NEW: Session PnL tracking (for chart/trades reset)
 const sessionStartTs = ref(parseInt(localStorage.getItem('mm3_session_start') || Date.now() / 1000))
 
+// Helper: Format timestamp to Melbourne time (UTC+10)
+function formatMelbourneTime(ts) {
+  if (!ts) return '-'
+  // Handle both ms and s timestamps
+  const ms = ts > 1000000000000 ? ts : ts * 1000
+  return new Date(ms).toLocaleString('en-AU', {
+    timeZone: 'Australia/Melbourne',
+    hour12: false,
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
 const resetSessionPnl = () => {
   if (!confirm('Reset PnL tracking? This will start fresh from now for the chart and trades.')) return
   const now = Math.floor(Date.now() / 1000)
@@ -71,6 +86,11 @@ async function loadSummary() {
       apiGet('/api/risk_status'),
     ])
 
+    // DEBUG: Log API responses
+    console.log('statusRes:', statusRes)
+    console.log('tradesRes:', tradesRes)
+    console.log('riskRes:', riskRes)
+
     // Risk status
     if (riskRes.success && riskRes.data) {
       riskStatus.value = riskRes.data
@@ -79,7 +99,9 @@ async function loadSummary() {
     // ── Status / positions ──
     if (statusRes.success && statusRes.data) {
       const slots = statusRes.data
+      console.log('slots:', slots)
       const firstKey = Object.keys(slots)[0]
+      console.log('firstKey:', firstKey, 'equity:', firstKey ? slots[firstKey].equity : null)
       if (firstKey) equity.value = slots[firstKey].equity || 0
       positions.value = Object.entries(slots).flatMap(([sym, data]) => {
         const live = data.live || {}
