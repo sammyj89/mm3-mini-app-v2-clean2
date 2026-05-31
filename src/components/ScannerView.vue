@@ -102,9 +102,9 @@
             </div>
           </div>
 
-          <div class="dual-status">
-            <!-- SHORT SIDE -->
-            <div class="side-block short-block">
+          <div class="dual-status" :class="{ 'single-side': !bidirectionalMode }">
+            <!-- SHORT SIDE (always show in bidirectional, or when unidirectional and has short position) -->
+            <div v-if="bidirectionalMode || slot.live?.short_qty > 0" class="side-block short-block">
               <div class="side-title">🔻 SHORT</div>
               <div v-if="slot.live?.short_qty > 0" class="side-data">
                 <div class="pnl" :class="pnlClass(slot.live.short_qty, slot.live.short_avg, slot.live.mid, 'short')">
@@ -118,8 +118,8 @@
               <div v-else class="flat-state">FLAT</div>
             </div>
 
-            <!-- LONG SIDE -->
-            <div class="side-block long-block">
+            <!-- LONG SIDE (always show in bidirectional, or when unidirectional and has long position) -->
+            <div v-if="bidirectionalMode || slot.live?.long_qty > 0" class="side-block long-block">
               <div class="side-title">🔺 LONG</div>
               <div v-if="slot.live?.long_qty > 0" class="side-data">
                 <div class="pnl" :class="pnlClass(slot.live.long_qty, slot.live.long_avg, slot.live.mid, 'long')">
@@ -132,6 +132,13 @@
               </div>
               <div v-else class="flat-state">FLAT</div>
             </div>
+          </div>
+          
+          <!-- PnL Reset Button -->
+          <div class="slot-footer">
+            <button @click.stop="resetPnlTracker(symbol)" class="btn-reset-pnl">
+              🔄 Reset PnL
+            </button>
           </div>
         </div>
       </div>
@@ -156,6 +163,9 @@ const screenerPicks = ref([])
 const screenerLoading = ref(false)
 const rotatingSlot = ref('') // tracks which slot is currently rotating
 
+// NEW: Bidirectional mode
+const bidirectionalMode = ref(true)
+
 // Custom rotate state
 const customSymbol = ref('')
 const selectedSlotSymbol = ref(null)
@@ -170,12 +180,42 @@ const freeSlotCount = computed(() => Math.max(0, MAX_SLOTS - slotList.value.leng
 
 onMounted(async () => {
   try {
-    const res = await apiGet('/api/screener_top5')
-    if (res.success && res.data) {
-      screenerPicks.value = res.data.picks || res.data || []
+    const [screenerRes, riskRes] = await Promise.all([
+      apiGet('/api/screener_top5'),
+      apiGet('/api/risk_status'),
+    ])
+    if (screenerRes.success && screenerRes.data) {
+      screenerPicks.value = screenerRes.data.picks || screenerRes.data || []
     }
-  } catch { console.warn('Failed to load screener data') }
+    if (riskRes.success && riskRes.data) {
+      bidirectionalMode.value = riskRes.data.bidirectional
+    }
+  } catch { console.warn('Failed to load data') }
 })
+
+// Reset PnL tracker
+const resetPnlTracker = async (rawSymbol) => {
+  const display = formatSymbol(rawSymbol)
+  if (!confirm(`Reset PnL tracker for ${display}?`)) return
+  try {
+    await apiPost(`/api/reset_pnl_tracker?symbol=${rawSymbol}`)
+    alert('PnL tracker reset!')
+    emit('refresh')
+  } catch (e) {
+    alert('Failed to reset: ' + e.message)
+  }
+}
+
+const resetAllPnlTracker = async () => {
+  if (!confirm('Reset ALL PnL trackers? This will clear all peak PnL tracking.')) return
+  try {
+    await apiPost('/api/reset_pnl_tracker')
+    alert('All PnL trackers reset!')
+    emit('refresh')
+  } catch (e) {
+    alert('Failed to reset: ' + e.message)
+  }
+}
 
 // Add screener pick directly into a free slot
 const addingSymbol = ref('') // tracks which symbol is being added
@@ -397,4 +437,36 @@ h2 { color: #e0e0e0; margin: 0; font-size: 18px; }
 .pick-side { font-size: 10px; font-weight: bold; margin-left: 8px; }
 .pick-side.short { color: #ff4444; }
 .pick-side.long { color: #00ff88; }
+
+/* Single side mode */
+.dual-status.single-side {
+  display: flex;
+  justify-content: center;
+}
+.dual-status.single-side .side-block {
+  max-width: 200px;
+}
+
+/* PnL Reset Button */
+.slot-footer {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #2a2a4a;
+  display: flex;
+  justify-content: center;
+}
+.btn-reset-pnl {
+  background: transparent;
+  border: 1px solid #444;
+  color: #888;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-reset-pnl:hover {
+  border-color: #00d4ff;
+  color: #00d4ff;
+}
 </style>
