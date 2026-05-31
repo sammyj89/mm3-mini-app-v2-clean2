@@ -25,6 +25,17 @@ const riskStatus = ref({
   max_inventory_usd: 150,
 })
 
+// NEW: Session PnL tracking (for chart/trades reset)
+const sessionStartTs = ref(parseInt(localStorage.getItem('mm3_session_start') || Date.now() / 1000))
+
+const resetSessionPnl = () => {
+  if (!confirm('Reset PnL tracking? This will start fresh from now for the chart and trades.')) return
+  const now = Math.floor(Date.now() / 1000)
+  sessionStartTs.value = now
+  localStorage.setItem('mm3_session_start', now.toString())
+  loadSummary()
+}
+
 async function loadRiskStatus() {
   try {
     const res = await apiGet('/api/risk_status')
@@ -104,26 +115,30 @@ async function loadSummary() {
     // ── Trades (single fetch, used for all three stats blocks) ──
     if (tradesRes.success && tradesRes.data) {
       const allTrades = tradesRes.data || []
-      // Use midnight of today (local time) not rolling 24h window
+      // Filter by session start time (reset when user clicks "Reset PnL")
+      const sessionTrades = allTrades.filter(t => t.ts >= sessionStartTs.value)
+      
+      // Today's PnL still uses midnight for display
       const now = new Date()
       const midnightTs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000
       dailyPnl.value = allTrades
         .filter(t => t.ts >= midnightTs)
         .reduce((s, t) => s + (t.pnl || 0), 0)
 
-      const wins   = allTrades.filter(t => (t.pnl || 0) > 0)
-      const losses = allTrades.filter(t => (t.pnl || 0) < 0)
-      stats.value.allTimePnl   = allTrades.reduce((s, t) => s + (t.pnl || 0), 0)
-      stats.value.totalTrades  = allTrades.length
-      stats.value.winRate      = allTrades.length ? ((wins.length / allTrades.length) * 100).toFixed(1) : 0
+      // Session stats (for chart and performance)
+      const wins   = sessionTrades.filter(t => (t.pnl || 0) > 0)
+      const losses = sessionTrades.filter(t => (t.pnl || 0) < 0)
+      stats.value.allTimePnl   = sessionTrades.reduce((s, t) => s + (t.pnl || 0), 0)
+      stats.value.totalTrades  = sessionTrades.length
+      stats.value.winRate      = sessionTrades.length ? ((wins.length / sessionTrades.length) * 100).toFixed(1) : 0
       const grossProfit = wins.reduce((s, t) => s + (t.pnl || 0), 0)
       const grossLoss   = Math.abs(losses.reduce((s, t) => s + (t.pnl || 0), 0))
       stats.value.profitFactor  = grossLoss > 0
         ? (grossProfit / grossLoss).toFixed(2)
         : (grossProfit > 0 ? '∞' : '0.00')
 
-      // Equity curve chart (reuse same trades data)
-      buildChart(allTrades)
+      // Equity curve chart uses session trades
+      buildChart(sessionTrades)
     }
   } catch (e) { console.error('loadSummary error', e) }
   loading.value = false
@@ -251,10 +266,13 @@ onUnmounted(() => {
     </div>
 
     <div class="card summary-card">
-      <h3>📊 Performance</h3>
+      <div class="perf-header">
+        <h3>📊 Performance</h3>
+        <button @click="resetSessionPnl" class="btn-reset-pnl">🔄 Reset Session</button>
+      </div>
       <div class="stats-grid">
         <div class="stat-item">
-          <span class="stat-label">All‑Time P&amp;L</span>
+          <span class="stat-label">Session P&amp;L</span>
           <span class="stat-value" :class="stats.allTimePnl >= 0 ? 'green' : 'red'">
             ${{ stats.allTimePnl.toFixed(2) }}
           </span>
@@ -308,4 +326,20 @@ h3 { color: #00d4ff; font-size: 14px; margin-bottom: 10px; text-transform: upper
 .regime-up { color: #00d4ff; }
 .regime-down { color: #ff4757; }
 .regime-vol { color: #ffd43b; }
+.perf-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.perf-header h3 { margin-bottom: 0; }
+.btn-reset-pnl {
+  background: transparent;
+  border: 1px solid #444;
+  color: #888;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-reset-pnl:hover {
+  border-color: #00d4ff;
+  color: #00d4ff;
+}
 </style>

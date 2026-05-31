@@ -133,13 +133,6 @@
               <div v-else class="flat-state">FLAT</div>
             </div>
           </div>
-          
-          <!-- PnL Reset Button -->
-          <div class="slot-footer">
-            <button @click.stop="resetPnlTracker(symbol)" class="btn-reset-pnl">
-              🔄 Reset PnL
-            </button>
-          </div>
         </div>
       </div>
     </div>
@@ -192,30 +185,6 @@ onMounted(async () => {
     }
   } catch { console.warn('Failed to load data') }
 })
-
-// Reset PnL tracker
-const resetPnlTracker = async (rawSymbol) => {
-  const display = formatSymbol(rawSymbol)
-  if (!confirm(`Reset PnL tracker for ${display}?`)) return
-  try {
-    await apiPost(`/api/reset_pnl_tracker?symbol=${rawSymbol}`)
-    alert('PnL tracker reset!')
-    emit('refresh')
-  } catch (e) {
-    alert('Failed to reset: ' + e.message)
-  }
-}
-
-const resetAllPnlTracker = async () => {
-  if (!confirm('Reset ALL PnL trackers? This will clear all peak PnL tracking.')) return
-  try {
-    await apiPost('/api/reset_pnl_tracker')
-    alert('All PnL trackers reset!')
-    emit('refresh')
-  } catch (e) {
-    alert('Failed to reset: ' + e.message)
-  }
-}
 
 // Add screener pick directly into a free slot
 const addingSymbol = ref('') // tracks which symbol is being added
@@ -445,28 +414,5 @@ h2 { color: #e0e0e0; margin: 0; font-size: 18px; }
 }
 .dual-status.single-side .side-block {
   max-width: 200px;
-}
-
-/* PnL Reset Button */
-.slot-footer {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid #2a2a4a;
-  display: flex;
-  justify-content: center;
-}
-.btn-reset-pnl {
-  background: transparent;
-  border: 1px solid #444;
-  color: #888;
-  padding: 4px 12px;
-  border-radius: 4px;
-  font-size: 11px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.btn-reset-pnl:hover {
-  border-color: #00d4ff;
-  color: #00d4ff;
 }
 </style>
