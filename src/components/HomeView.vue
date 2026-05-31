@@ -70,16 +70,33 @@ async function loadSummary() {
       const slots = statusRes.data
       const firstKey = Object.keys(slots)[0]
       if (firstKey) equity.value = slots[firstKey].equity || 0
-      positions.value = Object.entries(slots).map(([sym, data]) => {
+      positions.value = Object.entries(slots).flatMap(([sym, data]) => {
         const live = data.live || {}
-        const side = live.side || 'flat'
-        const qty = Math.abs(live.net_qty || 0)
         const mid = live.mid || 0
-        const avg = live.avg_entry || 0
-        let pnl = 0
-        if (qty > 0 && avg > 0 && mid > 0)
-          pnl = side === 'short' ? (avg - mid) * qty : (mid - avg) * qty
-        return { symbol: sym.split(':')[0], side, qty, notional: qty * mid, pnl }
+        const rows = []
+        // SHORT side
+        if ((live.short_qty || 0) > 0 && live.short_avg && mid) {
+          const pnl = (live.short_avg - mid) * live.short_qty
+          rows.push({
+            symbol: sym.split(':')[0],
+            side: 'short',
+            qty: live.short_qty,
+            notional: live.short_qty * mid,
+            pnl,
+          })
+        }
+        // LONG side
+        if ((live.long_qty || 0) > 0 && live.long_avg && mid) {
+          const pnl = (mid - live.long_avg) * live.long_qty
+          rows.push({
+            symbol: sym.split(':')[0],
+            side: 'long',
+            qty: live.long_qty,
+            notional: live.long_qty * mid,
+            pnl,
+          })
+        }
+        return rows
       })
       unrealizedPnl.value = positions.value.reduce((s, p) => s + p.pnl, 0)
     }
@@ -87,9 +104,11 @@ async function loadSummary() {
     // ── Trades (single fetch, used for all three stats blocks) ──
     if (tradesRes.success && tradesRes.data) {
       const allTrades = tradesRes.data || []
-      const oneDayAgo = Date.now() / 1000 - 86400
+      // Use midnight of today (local time) not rolling 24h window
+      const now = new Date()
+      const midnightTs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000
       dailyPnl.value = allTrades
-        .filter(t => t.ts > oneDayAgo)
+        .filter(t => t.ts >= midnightTs)
         .reduce((s, t) => s + (t.pnl || 0), 0)
 
       const wins   = allTrades.filter(t => (t.pnl || 0) > 0)
@@ -222,12 +241,12 @@ onUnmounted(() => {
     <div class="card positions-card">
       <h3>📌 Open Positions</h3>
       <div v-if="loading"><SkeletonCard /></div>
-      <div v-else-if="positions.length === 0">😴 No open positions.</div>
-      <div v-for="pos in positions" :key="pos.symbol" class="position-row">
+      <div v-else-if="positions.length === 0" class="empty-positions">😴 No open positions.</div>
+      <div v-for="pos in positions" :key="pos.symbol + pos.side" class="position-row">
         <span class="symbol">{{ pos.symbol }}</span>
         <span class="side" :class="pos.side === 'short' ? 'red' : 'green'">{{ pos.side }}</span>
         <span class="notional">${{ pos.notional.toFixed(2) }}</span>
-        <span class="pnl" :class="pos.pnl >= 0 ? 'green' : 'red'">${{ pos.pnl.toFixed(2) }}</span>
+        <span class="pnl" :class="pos.pnl >= 0 ? 'green' : 'red'">{{ pos.pnl >= 0 ? '+' : '' }}${{ pos.pnl.toFixed(2) }}</span>
       </div>
     </div>
 
@@ -274,6 +293,7 @@ h3 { color: #00d4ff; font-size: 14px; margin-bottom: 10px; text-transform: upper
 .side { text-transform: uppercase; min-width: 50px; }
 .notional { font-family: monospace; margin-left: auto; margin-right: 10px; }
 .pnl { font-family: monospace; }
+.empty-positions { color: #666; font-size: 13px; text-align: center; padding: 16px 0; }
 .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .stat-item { display: flex; flex-direction: column; }
 .stat-label { font-size: 10px; color: #8888aa; text-transform: uppercase; }

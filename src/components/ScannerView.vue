@@ -9,6 +9,10 @@
         </button>
       </div>
       <div v-if="screenerPicks.length > 0" class="screener-list">
+        <!-- Free slot badge -->
+        <div v-if="freeSlotCount > 0" class="free-slot-hint">
+          ✅ {{ freeSlotCount }} free slot{{ freeSlotCount > 1 ? 's' : '' }} available — tap ➕ to add a pair
+        </div>
         <div v-for="pick in screenerPicks" :key="pick.symbol" class="screener-item">
           <div class="pick-info">
             <span class="pick-symbol">{{ formatSymbol(pick.symbol) }}</span>
@@ -18,13 +22,24 @@
             </span>
           </div>
           <div class="slot-buttons">
-            <button 
-              v-for="(sym, idx) in slotList" 
-              :key="idx" 
+            <!-- ➕ Free slot button — shown when slots < MAX -->
+            <button
+              v-if="freeSlotCount > 0"
+              @click="addToFreeSlot(pick.symbol)"
+              class="btn-slot btn-add"
+              :disabled="addingSymbol === pick.symbol"
+            >
+              {{ addingSymbol === pick.symbol ? '⏳' : '➕' }}
+            </button>
+            <!-- Rotate into existing slots -->
+            <button
+              v-for="(sym, idx) in slotList"
+              :key="idx"
               @click="rotateSlot(sym, pick.symbol)"
               class="btn-slot"
+              :disabled="rotatingSlot === sym"
             >
-              Slot {{ idx + 1 }}
+              {{ rotatingSlot === sym ? '⏳' : `Slot ${idx + 1}` }}
             </button>
           </div>
         </div>
@@ -36,10 +51,10 @@
     <div class="section custom-rotate-section">
       <h3>➕ Custom Rotate</h3>
       <div class="custom-rotate-controls">
-        <input 
-          v-model="customSymbol" 
-          placeholder="Enter symbol, e.g. BTC" 
-          class="custom-input" 
+        <input
+          v-model="customSymbol"
+          placeholder="Enter symbol, e.g. BTC"
+          class="custom-input"
           @keyup.enter="rotateCustomToSlot"
         />
         <select v-model="selectedSlotSymbol" class="slot-select">
@@ -47,9 +62,9 @@
             {{ formatSymbol(sym) }}
           </option>
         </select>
-        <button 
-          @click="rotateCustomToSlot" 
-          class="btn-rotate-custom" 
+        <button
+          @click="rotateCustomToSlot"
+          class="btn-rotate-custom"
           :disabled="!customSymbol.trim() || !selectedSlotSymbol"
         >
           Rotate
@@ -65,22 +80,24 @@
     <!-- ACTIVE SLOTS SECTION -->
     <div class="section">
       <h2>Active Slots</h2>
-      
+
       <div v-if="!activeSlots || Object.keys(activeSlots).length === 0" class="empty-state">
         Loading slots or no active symbols...
       </div>
 
       <div v-else class="slots-grid">
-        <div 
-          v-for="(slot, symbol) in activeSlots" 
-          :key="symbol" 
+        <div
+          v-for="(slot, symbol) in activeSlots"
+          :key="symbol"
           class="slot-card"
           @click="$emit('select-symbol', symbol)"
         >
           <div class="slot-header">
             <h3 class="symbol-name">{{ formatSymbol(symbol) }}</h3>
             <div class="header-actions" @click.stop>
-              <button @click="rotateSlotPrompt(symbol)" class="btn-action btn-rotate">🔄 Rotate</button>
+              <button @click="rotateSlotPrompt(symbol)" class="btn-action btn-rotate" :disabled="rotatingSlot === symbol">
+                {{ rotatingSlot === symbol ? '⏳ Rotating...' : '🔄 Rotate' }}
+              </button>
               <button @click="releaseSlot(symbol)" class="btn-action btn-release">🔓 Release</button>
             </div>
           </div>
@@ -137,13 +154,19 @@ const emit = defineEmits(['select-symbol', 'refresh'])
 
 const screenerPicks = ref([])
 const screenerLoading = ref(false)
+const rotatingSlot = ref('') // tracks which slot is currently rotating
 
 // Custom rotate state
 const customSymbol = ref('')
 const selectedSlotSymbol = ref(null)
 
+const MAX_SLOTS = 3
+
 // Computed list of active slot symbols for the buttons
 const slotList = computed(() => Object.keys(props.activeSlots))
+
+// How many free slots are available
+const freeSlotCount = computed(() => Math.max(0, MAX_SLOTS - slotList.value.length))
 
 onMounted(async () => {
   try {
@@ -151,8 +174,24 @@ onMounted(async () => {
     if (res.success && res.data) {
       screenerPicks.value = res.data.picks || res.data || []
     }
-  } catch (e) { console.warn('Failed to load screener data') }
+  } catch { console.warn('Failed to load screener data') }
 })
+
+// Add screener pick directly into a free slot
+const addingSymbol = ref('') // tracks which symbol is being added
+const addToFreeSlot = async (symbol) => {
+  if (!confirm(`Add ${formatSymbol(symbol)} to a new slot?`)) return
+  addingSymbol.value = symbol
+  try {
+    await apiPost('/api/symbol', { symbol })
+    alert(`${formatSymbol(symbol)} added successfully.`)
+    emit('refresh')
+  } catch (err) {
+    alert(`Failed to add: ${errorMsg(err)}`)
+  } finally {
+    addingSymbol.value = ''
+  }
+}
 
 const runScreener = async () => {
   screenerLoading.value = true
@@ -177,14 +216,21 @@ const fillPercent = (ladder) => {
 
 const formatPnl = (qty, avg, mid, side) => {
   if (!qty || qty <= 0 || !avg || !mid) return '$0.00'
-  let pnl = side === 'short' ? (avg - mid) * qty : (mid - avg) * qty
+  const pnl = side === 'short' ? (avg - mid) * qty : (mid - avg) * qty
   return `${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`
 }
 
 const pnlClass = (qty, avg, mid, side) => {
   if (!qty || qty <= 0 || !avg || !mid) return ''
-  let pnl = side === 'short' ? (avg - mid) * qty : (mid - avg) * qty
-  return pnl >= 0 ? 'positive' : 'negative'
+  const pnl2 = side === 'short' ? (avg - mid) * qty : (mid - avg) * qty
+  return pnl2 >= 0 ? 'positive' : 'negative'
+}
+
+function errorMsg(err) {
+  if (err.name === 'TimeoutError' || err.message?.includes('timed out') || err.message?.includes('signal')) {
+    return 'Request timed out. The operation may still be running — please refresh in a moment.'
+  }
+  return err.message || 'Unknown error'
 }
 
 const releaseSlot = async (symbol) => {
@@ -193,28 +239,32 @@ const releaseSlot = async (symbol) => {
     await apiPost('/api/release_slot', { symbol })
     alert('Slot released.')
     emit('refresh')
-  } catch (err) { alert(`Failed: ${err.message}`) }
+  } catch (err) { alert(`Failed: ${errorMsg(err)}`) }
 }
 
 // One-click rotation from Screener pick to specific Slot
 const rotateSlot = async (oldSymbol, newSymbol) => {
   if (!confirm(`Rotate Slot ${formatSymbol(oldSymbol)} → ${formatSymbol(newSymbol)}?`)) return
+  rotatingSlot.value = oldSymbol
   try {
     await apiPostQuery('/api/rotate_symbol', { old: oldSymbol, new: newSymbol })
     alert('Rotation started.')
     emit('refresh')
-  } catch (err) { alert(`Failed: ${err.message}`) }
+  } catch (err) { alert(`Failed: ${errorMsg(err)}`) }
+  finally { rotatingSlot.value = '' }
 }
 
 // Manual rotation (typing new symbol)
 const rotateSlotPrompt = async (oldSymbol) => {
   const newSymbol = prompt(`Enter new symbol to rotate into ${formatSymbol(oldSymbol)} (e.g., BTC):`)
   if (!newSymbol) return
+  rotatingSlot.value = oldSymbol
   try {
     await apiPostQuery('/api/rotate_symbol', { old: oldSymbol, new: newSymbol })
     alert('Rotation started.')
     emit('refresh')
-  } catch (err) { alert(`Failed: ${err.message}`) }
+  } catch (err) { alert(`Failed: ${errorMsg(err)}`) }
+  finally { rotatingSlot.value = '' }
 }
 
 // 🆕 Rotate custom symbol into selected slot
@@ -223,15 +273,15 @@ const rotateCustomToSlot = async () => {
   const oldSymbol = selectedSlotSymbol.value
   if (!newSymbol || !oldSymbol) return
   if (!confirm(`Rotate slot ${formatSymbol(oldSymbol)} → ${newSymbol}?`)) return
+  rotatingSlot.value = oldSymbol
   try {
     await apiPostQuery('/api/rotate_symbol', { old: oldSymbol, new: newSymbol })
     alert('Rotation started.')
-    // Clear input after successful rotation
     customSymbol.value = ''
-    // Optionally keep the same slot selected? We'll reset to first slot if exists.
     if (slotList.value.length) selectedSlotSymbol.value = slotList.value[0]
     emit('refresh')
-  } catch (err) { alert(`Failed: ${err.message}`) }
+  } catch (err) { alert(`Failed: ${errorMsg(err)}`) }
+  finally { rotatingSlot.value = '' }
 }
 </script>
 
@@ -252,8 +302,13 @@ h2 { color: #e0e0e0; margin: 0; font-size: 18px; }
 .slot-buttons { display: flex; gap: 4px; }
 .btn-slot { padding: 6px 10px; background: #2a2a4a; color: #00d4ff; border: 1px solid #00d4ff33; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold; }
 .btn-slot:hover { background: #00d4ff; color: #000; }
+.btn-slot:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-add { background: #0d2b1a; color: #00ff88; border-color: #00ff8844; font-size: 14px; }
+.btn-add:hover { background: #00ff88; color: #000; }
+.btn-add:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .empty-state-small { color: #555; font-size: 12px; text-align: center; padding: 12px; background: #16213e; border-radius: 6px; }
+.free-slot-hint { font-size: 11px; color: #00ff88; background: #0d2b1a; border: 1px solid #00ff8833; border-radius: 6px; padding: 6px 10px; margin-bottom: 8px; text-align: center; }
 .empty-state { color: #666; text-align: center; padding: 40px; background: #16213e; border-radius: 8px; }
 
 .divider { border: 0; border-top: 1px solid #2a2a4a; margin: 20px 0; }
