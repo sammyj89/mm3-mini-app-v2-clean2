@@ -115,30 +115,35 @@ async function loadSummary() {
     // ── Trades (single fetch, used for all three stats blocks) ──
     if (tradesRes.success && tradesRes.data) {
       const allTrades = tradesRes.data || []
-      // Filter by session start time (reset when user clicks "Reset PnL")
-      const sessionTrades = allTrades.filter(t => t.ts >= sessionStartTs.value)
+      
+      // Handle timestamp - API returns milliseconds, sessionStartTs is in seconds
+      const sessionStartMs = sessionStartTs.value * 1000
+      const sessionTrades = allTrades.filter(t => (t.ts || 0) >= sessionStartMs)
+      
+      // Use all trades if session filter returns empty (fallback)
+      const displayTrades = sessionTrades.length > 0 ? sessionTrades : allTrades
       
       // Today's PnL still uses midnight for display
       const now = new Date()
-      const midnightTs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000
+      const midnightMs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
       dailyPnl.value = allTrades
-        .filter(t => t.ts >= midnightTs)
+        .filter(t => (t.ts || 0) >= midnightMs)
         .reduce((s, t) => s + (t.pnl || 0), 0)
 
       // Session stats (for chart and performance)
-      const wins   = sessionTrades.filter(t => (t.pnl || 0) > 0)
-      const losses = sessionTrades.filter(t => (t.pnl || 0) < 0)
-      stats.value.allTimePnl   = sessionTrades.reduce((s, t) => s + (t.pnl || 0), 0)
-      stats.value.totalTrades  = sessionTrades.length
-      stats.value.winRate      = sessionTrades.length ? ((wins.length / sessionTrades.length) * 100).toFixed(1) : 0
+      const wins   = displayTrades.filter(t => (t.pnl || 0) > 0)
+      const losses = displayTrades.filter(t => (t.pnl || 0) < 0)
+      stats.value.allTimePnl   = displayTrades.reduce((s, t) => s + (t.pnl || 0), 0)
+      stats.value.totalTrades  = displayTrades.length
+      stats.value.winRate      = displayTrades.length ? ((wins.length / displayTrades.length) * 100).toFixed(1) : 0
       const grossProfit = wins.reduce((s, t) => s + (t.pnl || 0), 0)
       const grossLoss   = Math.abs(losses.reduce((s, t) => s + (t.pnl || 0), 0))
       stats.value.profitFactor  = grossLoss > 0
         ? (grossProfit / grossLoss).toFixed(2)
         : (grossProfit > 0 ? '∞' : '0.00')
 
-      // Equity curve chart uses session trades
-      buildChart(sessionTrades)
+      // Equity curve chart uses display trades
+      buildChart(displayTrades)
     }
   } catch (e) { console.error('loadSummary error', e) }
   loading.value = false
