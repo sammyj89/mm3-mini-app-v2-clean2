@@ -87,13 +87,18 @@
 
       <div v-else class="slots-grid">
         <div
-          v-for="(slot, symbol) in activeSlots"
+          v-for="(slot, symbol) in activeSlotsWithPref"
           :key="symbol"
           class="slot-card"
           @click="$emit('select-symbol', symbol)"
         >
           <div class="slot-header">
-            <h3 class="symbol-name">{{ formatSymbol(symbol) }}</h3>
+            <h3 class="symbol-name">
+              {{ formatSymbol(symbol) }}
+              <span v-if="!bidirectionalMode && slot.preferred_side" class="pref-pill" :class="slot.preferred_side">
+                {{ slot.preferred_side === 'short' ? 'SHORT ONLY' : 'LONG ONLY' }}
+              </span>
+            </h3>
             <div class="header-actions" @click.stop>
               <button @click="rotateSlotPrompt(symbol)" class="btn-action btn-rotate" :disabled="rotatingSlot === symbol">
                 {{ rotatingSlot === symbol ? '⏳ Rotating...' : '🔄 Rotate' }}
@@ -102,9 +107,12 @@
             </div>
           </div>
 
-          <div class="dual-status" :class="{ 'single-side': !bidirectionalMode }">
-            <!-- SHORT SIDE (always show in bidirectional, or when unidirectional and has short position) -->
-            <div v-if="bidirectionalMode || slot.live?.short_qty > 0" class="side-block short-block">
+          <div class="dual-status" :class="{ 'single-side': !bidirectionalMode && slot.preferred_side }">
+            <!-- SHORT SIDE (show unless unidirectional + preferred LONG) -->
+            <div
+              v-if="bidirectionalMode || slot.preferred_side !== 'long' || slot.live?.short_qty > 0"
+              class="side-block short-block"
+            >
               <div class="side-title">🔻 SHORT</div>
               <div v-if="slot.live?.short_qty > 0" class="side-data">
                 <div class="pnl" :class="pnlClass(slot.live.short_qty, slot.live.short_avg, slot.live.mid, 'short')">
@@ -118,8 +126,11 @@
               <div v-else class="flat-state">FLAT</div>
             </div>
 
-            <!-- LONG SIDE (always show in bidirectional, or when unidirectional and has long position) -->
-            <div v-if="bidirectionalMode || slot.live?.long_qty > 0" class="side-block long-block">
+            <!-- LONG SIDE (show unless unidirectional + preferred SHORT) -->
+            <div
+              v-if="bidirectionalMode || slot.preferred_side !== 'short' || slot.live?.long_qty > 0"
+              class="side-block long-block"
+            >
               <div class="side-title">🔺 LONG</div>
               <div v-if="slot.live?.long_qty > 0" class="side-data">
                 <div class="pnl" :class="pnlClass(slot.live.long_qty, slot.live.long_avg, slot.live.mid, 'long')">
@@ -140,7 +151,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { apiGet, apiPost, apiPostQuery } from '../services/api'
 
 const props = defineProps({
@@ -168,8 +179,39 @@ const MAX_SLOTS = 3
 // Computed list of active slot symbols for the buttons
 const slotList = computed(() => Object.keys(props.activeSlots))
 
+// Map of display symbol -> raw symbol key (with exchange suffix)
+const preferredSides = ref({})
+
+const activeSlotsWithPref = computed(() => {
+  const merged = {}
+  Object.entries(props.activeSlots).forEach(([rawKey, data]) => {
+    merged[rawKey] = {
+      ...data,
+      preferred_side: preferredSides.value[rawKey] || data.preferred_side || null
+    }
+  })
+  return merged
+})
+
 // How many free slots are available
 const freeSlotCount = computed(() => Math.max(0, MAX_SLOTS - slotList.value.length))
+
+const loadStatusMeta = async () => {
+  try {
+    const res = await apiGet('/api/status_all')
+    if (res.success && res.data) {
+      const pref = {}
+      Object.entries(res.data).forEach(([rawKey, payload]) => {
+        if (payload?.preferred_side) {
+          pref[rawKey] = payload.preferred_side
+        }
+      })
+      preferredSides.value = pref
+    }
+  } catch (err) {
+    console.warn('Failed to load status metadata', err)
+  }
+}
 
 onMounted(async () => {
   try {
@@ -183,6 +225,7 @@ onMounted(async () => {
     if (riskRes.success && riskRes.data) {
       bidirectionalMode.value = riskRes.data.bidirectional
     }
+    await loadStatusMeta()
   } catch { console.warn('Failed to load data') }
 })
 
@@ -218,6 +261,10 @@ const runScreener = async () => {
 
 const formatSymbol = (sym) => sym ? sym.split(':')[0] : ''
 
+const preferredSideFor = (rawSymbol) => {
+  return preferredSides.value[rawSymbol] || null
+}
+
 const fillPercent = (ladder) => {
   if (!ladder || ladder.total === 0) return 0
   return (ladder.consumed / ladder.total) * 100
@@ -248,6 +295,7 @@ const releaseSlot = async (symbol) => {
     await apiPost('/api/release_slot', { symbol })
     alert('Slot released.')
     emit('refresh')
+    await loadStatusMeta()
   } catch (err) { alert(`Failed: ${errorMsg(err)}`) }
 }
 
@@ -259,6 +307,7 @@ const rotateSlot = async (oldSymbol, newSymbol) => {
     await apiPostQuery('/api/rotate_symbol', { old: oldSymbol, new: newSymbol })
     alert('Rotation started.')
     emit('refresh')
+    await loadStatusMeta()
   } catch (err) { alert(`Failed: ${errorMsg(err)}`) }
   finally { rotatingSlot.value = '' }
 }
@@ -272,6 +321,7 @@ const rotateSlotPrompt = async (oldSymbol) => {
     await apiPostQuery('/api/rotate_symbol', { old: oldSymbol, new: newSymbol })
     alert('Rotation started.')
     emit('refresh')
+    await loadStatusMeta()
   } catch (err) { alert(`Failed: ${errorMsg(err)}`) }
   finally { rotatingSlot.value = '' }
 }
@@ -289,6 +339,7 @@ const rotateCustomToSlot = async () => {
     customSymbol.value = ''
     if (slotList.value.length) selectedSlotSymbol.value = slotList.value[0]
     emit('refresh')
+    await loadStatusMeta()
   } catch (err) { alert(`Failed: ${errorMsg(err)}`) }
   finally { rotatingSlot.value = '' }
 }
@@ -385,6 +436,19 @@ h2 { color: #e0e0e0; margin: 0; font-size: 18px; }
 .slot-card:hover { border-color: #00d4ff; }
 .slot-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
 .symbol-name { margin: 0; color: #fff; font-size: 16px; font-weight: bold; }
+.pref-pill {
+  margin-left: 8px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  border: 1px solid currentColor;
+}
+.pref-pill.short { color: #ff4444; }
+.pref-pill.long { color: #00ff88; }
+.pref-pill.short { background: rgba(255,68,68,0.12); }
+.pref-pill.long { background: rgba(0,255,136,0.12); }
 .header-actions { display: flex; gap: 6px; }
 .btn-action { padding: 4px 10px; border-radius: 4px; border: none; cursor: pointer; font-size: 11px; font-weight: bold; }
 .btn-rotate { background: #2a2a4a; color: #00d4ff; }
