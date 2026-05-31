@@ -14,14 +14,56 @@ let chart = null
 
 const stats = ref({ allTimePnl: 0, totalTrades: 0, winRate: 0, profitFactor: 0 })
 
+// NEW: Risk management status
+const riskStatus = ref({
+  regime: 'unknown',
+  regime_confidence: 0,
+  volatility: { status: 'NORMAL', current_vol_pct: 0, target_vol_pct: 2, multiplier: 1 },
+  rate_limit_paused: false,
+  rate_limit_usage_pct: 0,
+  bidirectional: true,
+  max_inventory_usd: 150,
+})
+
+async function loadRiskStatus() {
+  try {
+    const res = await apiGet('/api/risk_status')
+    if (res.success && res.data) {
+      riskStatus.value = res.data
+    }
+  } catch (e) { console.error('loadRiskStatus error', e) }
+}
+
+function getRegimeIcon(regime) {
+  if (regime === 'ranging') return '↔️'
+  if (regime === 'trending_up') return '📈'
+  if (regime === 'trending_down') return '📉'
+  if (regime === 'high_vol') return '⚡'
+  return '❓'
+}
+
+function getRegimeClass(regime) {
+  if (regime === 'ranging') return 'regime-ranging'
+  if (regime === 'trending_up') return 'regime-up'
+  if (regime === 'trending_down') return 'regime-down'
+  if (regime === 'high_vol') return 'regime-vol'
+  return ''
+}
+
 async function loadSummary() {
   loading.value = true
   try {
     // Single parallel fetch — no triple-calling trades_exchange
-    const [statusRes, tradesRes] = await Promise.all([
+    const [statusRes, tradesRes, riskRes] = await Promise.all([
       apiGet('/api/status_all'),
       apiGet('/api/trades_exchange'),
+      apiGet('/api/risk_status'),
     ])
+
+    // Risk status
+    if (riskRes.success && riskRes.data) {
+      riskStatus.value = riskRes.data
+    }
 
     // ── Status / positions ──
     if (statusRes.success && statusRes.data) {
@@ -119,6 +161,41 @@ onUnmounted(() => {
 
 <template>
   <div class="home-tab">
+    <!-- Risk Management Status Panel -->
+    <div class="card risk-card">
+      <h3>🛡️ Risk Status</h3>
+      <div class="risk-grid">
+        <div class="risk-item">
+          <span class="risk-label">Regime</span>
+          <span class="risk-value" :class="getRegimeClass(riskStatus.regime)">
+            {{ getRegimeIcon(riskStatus.regime) }} {{ riskStatus.regime }}
+          </span>
+          <span class="risk-sub">{{ Math.round(riskStatus.regime_confidence * 100) }}% confidence</span>
+        </div>
+        <div class="risk-item">
+          <span class="risk-label">Volatility</span>
+          <span class="risk-value" :class="riskStatus.volatility.status === 'HIGH_VOL' ? 'red' : riskStatus.volatility.status === 'ELEVATED_VOL' ? 'yellow' : 'green'">
+            {{ riskStatus.volatility.status }}
+          </span>
+          <span class="risk-sub">{{ riskStatus.volatility.current_vol_pct?.toFixed(1) }}% / {{ riskStatus.volatility.target_vol_pct }}% target</span>
+        </div>
+        <div class="risk-item">
+          <span class="risk-label">Rate Limit</span>
+          <span class="risk-value" :class="riskStatus.rate_limit_paused ? 'red' : 'green'">
+            {{ riskStatus.rate_limit_paused ? '⏸️ PAUSED' : '✅ OK' }}
+          </span>
+          <span class="risk-sub">{{ riskStatus.rate_limit_usage_pct?.toFixed(0) }}% used</span>
+        </div>
+        <div class="risk-item">
+          <span class="risk-label">Mode</span>
+          <span class="risk-value" :class="riskStatus.bidirectional ? 'yellow' : 'green'">
+            {{ riskStatus.bidirectional ? '↔️ Bidirectional' : '➡️ Unidirectional' }}
+          </span>
+          <span class="risk-sub">Max ${{ riskStatus.max_inventory_usd }}/coin</span>
+        </div>
+      </div>
+    </div>
+
     <div class="card summary-card">
       <h3>💰 Account Summary</h3>
       <div class="summary-metrics">
@@ -190,6 +267,7 @@ h3 { color: #00d4ff; font-size: 14px; margin-bottom: 10px; text-transform: upper
 .value { font-size: 20px; font-weight: bold; font-family: monospace; }
 .green { color: #00ff88; }
 .red   { color: #ff4757; }
+.yellow { color: #ffd43b; }
 .mini-chart { height: 80px; margin-top: 12px; }
 .position-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #2a2a4a; font-size: 13px; }
 .symbol { font-weight: bold; min-width: 80px; }
@@ -200,4 +278,14 @@ h3 { color: #00d4ff; font-size: 14px; margin-bottom: 10px; text-transform: upper
 .stat-item { display: flex; flex-direction: column; }
 .stat-label { font-size: 10px; color: #8888aa; text-transform: uppercase; }
 .stat-value { font-size: 14px; font-weight: bold; font-family: monospace; }
+/* Risk Status Panel */
+.risk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.risk-item { display: flex; flex-direction: column; background: #1a2744; padding: 10px; border-radius: 8px; }
+.risk-label { font-size: 9px; color: #8888aa; text-transform: uppercase; margin-bottom: 4px; }
+.risk-value { font-size: 12px; font-weight: bold; }
+.risk-sub { font-size: 9px; color: #666; margin-top: 2px; }
+.regime-ranging { color: #00ff88; }
+.regime-up { color: #00d4ff; }
+.regime-down { color: #ff4757; }
+.regime-vol { color: #ffd43b; }
 </style>

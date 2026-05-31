@@ -31,6 +31,28 @@
       <p class="note">Note: Free Cloudflare tunnels generate a new URL every time they restart. You must update it here if the bot/tunnel restarts.</p>
     </div>
 
+    <!-- NEW: Trading Mode Settings -->
+    <div class="mode-section">
+      <h3>⚙️ Trading Mode</h3>
+      <div class="mode-toggle">
+        <label class="toggle-label">
+          <input type="checkbox" v-model="bidirectionalMode" @change="toggleBidirectional" />
+          <span class="toggle-switch"></span>
+          <span class="toggle-text">{{ bidirectionalMode ? '↔️ Bidirectional' : '➡️ Unidirectional' }}</span>
+        </label>
+      </div>
+      <p class="mode-hint">
+        <span v-if="bidirectionalMode">Trading both long and short sides</span>
+        <span v-else>Trading only scanner's preferred side</span>
+      </p>
+      <div class="risk-info">
+        <span class="risk-label">Local Stop:</span>
+        <span class="risk-value">8%</span>
+        <span class="risk-label">Max/coin:</span>
+        <span class="risk-value">$150</span>
+      </div>
+    </div>
+
     <div class="danger-zone">
       <h3>⚠️ Danger Zone</h3>
       <button @click="clearAndReset" class="clear-btn">Clear URL & Reset to Default</button>
@@ -40,12 +62,32 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { getApiBase, setApiBase } from '../services/api'
+import { ref, onMounted } from 'vue'
+import { getApiBase, setApiBase, apiGet, apiPost } from '../services/api'
 
 const apiUrl = ref(getApiBase())
 const testing = ref(false)
 const testResult = ref(null)
+
+// NEW: Bidirectional mode
+const bidirectionalMode = ref(true)
+
+onMounted(async () => {
+  try {
+    const res = await apiGet('/api/risk_status')
+    if (res.success && res.data) {
+      bidirectionalMode.value = res.data.bidirectional
+    }
+  } catch (e) { console.error('Failed to load risk status', e) }
+})
+
+const toggleBidirectional = async () => {
+  try {
+    await apiPost(`/api/set_bidirectional?enabled=${bidirectionalMode.value}`)
+  } catch (e) {
+    console.error('Failed to toggle bidirectional', e)
+  }
+}
 
 const saveAndReload = () => {
   if (!apiUrl.value.startsWith('http')) {
@@ -243,5 +285,92 @@ h2 {
 .danger-text {
   font-size: 12px;
   color: #a0a0a0;
+}
+
+.mode-section {
+  background: #1a1a2e;
+  border-radius: 12px;
+  padding: 20px;
+  margin: 20px 0;
+}
+
+.mode-section h3 {
+  color: #00d4ff;
+  margin-bottom: 15px;
+  font-size: 16px;
+}
+
+.mode-toggle {
+  margin-bottom: 10px;
+}
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.toggle-label input {
+  display: none;
+}
+
+.toggle-switch {
+  width: 48px;
+  height: 26px;
+  background: #333;
+  border-radius: 13px;
+  position: relative;
+  margin-right: 12px;
+  transition: background 0.3s;
+}
+
+.toggle-switch::after {
+  content: '';
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  background: #fff;
+  border-radius: 50%;
+  top: 3px;
+  left: 3px;
+  transition: transform 0.3s;
+}
+
+.toggle-label input:checked + .toggle-switch {
+  background: #00d4ff;
+}
+
+.toggle-label input:checked + .toggle-switch::after {
+  transform: translateX(22px);
+}
+
+.toggle-text {
+  font-size: 14px;
+  font-weight: bold;
+  color: #fff;
+}
+
+.mode-hint {
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 12px;
+}
+
+.risk-info {
+  display: flex;
+  gap: 15px;
+  padding: 10px;
+  background: #16213e;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.risk-label {
+  color: #888;
+}
+
+.risk-value {
+  color: #00ff88;
+  font-weight: bold;
 }
 </style>

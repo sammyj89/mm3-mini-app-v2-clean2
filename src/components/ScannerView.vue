@@ -13,6 +13,9 @@
           <div class="pick-info">
             <span class="pick-symbol">{{ formatSymbol(pick.symbol) }}</span>
             <span class="pick-score">Score: {{ pick.score?.toFixed(1) || '-' }}</span>
+            <span v-if="pick.preferred_side" class="pick-side" :class="pick.preferred_side">
+              {{ pick.preferred_side === 'short' ? '🔴 SHORT' : '🟢 LONG' }}
+            </span>
           </div>
           <div class="slot-buttons">
             <button 
@@ -336,4 +339,7 @@ h2 { color: #e0e0e0; margin: 0; font-size: 18px; }
 .short-fill { background: #ff4444; } .long-fill { background: #00d4ff; }
 .ladder-text { font-size: 9px; color: #a0a0a0; text-align: right; }
 .flat-state { color: #444; font-style: italic; text-align: center; padding: 8px 0; font-size: 11px; }
+.pick-side { font-size: 10px; font-weight: bold; margin-left: 8px; }
+.pick-side.short { color: #ff4444; }
+.pick-side.long { color: #00ff88; }
 </style>
