@@ -95,7 +95,7 @@
           <div class="slot-header">
             <h3 class="symbol-name">
               {{ formatSymbol(symbol) }}
-              <span v-if="!bidirectionalMode && slot.preferred_side" class="pref-pill" :class="slot.preferred_side">
+              <span v-if="!slot.bidirectional && slot.preferred_side" class="pref-pill" :class="slot.preferred_side">
                 {{ slot.preferred_side === 'short' ? 'SHORT ONLY' : 'LONG ONLY' }}
               </span>
             </h3>
@@ -107,10 +107,10 @@
             </div>
           </div>
 
-          <div class="dual-status" :class="{ 'single-side': !bidirectionalMode && slot.preferred_side }">
+          <div class="dual-status" :class="{ 'single-side': !slot.bidirectional && slot.preferred_side }">
             <!-- SHORT SIDE (show unless unidirectional + preferred LONG) -->
             <div
-              v-if="bidirectionalMode || slot.preferred_side !== 'long' || slot.live?.short_qty > 0"
+              v-if="slot.bidirectional || slot.preferred_side !== 'long' || slot.live?.short_qty > 0"
               class="side-block short-block"
             >
               <div class="side-title">🔻 SHORT</div>
@@ -128,7 +128,7 @@
 
             <!-- LONG SIDE (show unless unidirectional + preferred SHORT) -->
             <div
-              v-if="bidirectionalMode || slot.preferred_side !== 'short' || slot.live?.long_qty > 0"
+              v-if="slot.bidirectional || slot.preferred_side !== 'short' || slot.live?.long_qty > 0"
               class="side-block long-block"
             >
               <div class="side-title">🔺 LONG</div>
@@ -185,9 +185,11 @@ const preferredSides = ref({})
 const activeSlotsWithPref = computed(() => {
   const merged = {}
   Object.entries(props.activeSlots).forEach(([rawKey, data]) => {
+    const isBidirectional = data.bidirectional !== undefined ? data.bidirectional : bidirectionalMode.value
     merged[rawKey] = {
       ...data,
-      preferred_side: preferredSides.value[rawKey] || data.preferred_side || null
+      preferred_side: preferredSides.value[rawKey] || data.preferred_side || null,
+      bidirectional: isBidirectional,
     }
   })
   return merged
