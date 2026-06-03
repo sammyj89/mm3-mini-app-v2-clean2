@@ -14,7 +14,6 @@ let chart = null
 
 const stats = ref({ allTimePnl: 0, totalTrades: 0, winRate: 0, profitFactor: 0 })
 
-// NEW: Risk management status
 const riskStatus = ref({
   regime: 'unknown',
   regime_confidence: 0,
@@ -25,23 +24,7 @@ const riskStatus = ref({
   max_inventory_usd: 150,
 })
 
-// NEW: Session PnL tracking (for chart/trades reset)
 const sessionStartTs = ref(parseInt(localStorage.getItem('mm3_session_start') || Date.now() / 1000))
-
-// Helper: Format timestamp to Melbourne time (UTC+10)
-function formatMelbourneTime(ts) {
-  if (!ts) return '-'
-  // Handle both ms and s timestamps
-  const ms = ts > 1000000000000 ? ts : ts * 1000
-  return new Date(ms).toLocaleString('en-AU', {
-    timeZone: 'Australia/Melbourne',
-    hour12: false,
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-}
 
 const resetSessionPnl = () => {
   if (!confirm('Reset PnL tracking? This will start fresh from now for the chart and trades.')) return
@@ -54,9 +37,7 @@ const resetSessionPnl = () => {
 async function loadRiskStatus() {
   try {
     const res = await apiGet('/api/risk_status')
-    if (res.success && res.data) {
-      riskStatus.value = res.data
-    }
+    if (res.success && res.data) riskStatus.value = res.data
   } catch (e) { console.error('loadRiskStatus error', e) }
 }
 
@@ -69,102 +50,64 @@ function getRegimeIcon(regime) {
 }
 
 function getRegimeClass(regime) {
-  if (regime === 'ranging') return 'regime-ranging'
-  if (regime === 'trending_up') return 'regime-up'
-  if (regime === 'trending_down') return 'regime-down'
-  if (regime === 'high_vol') return 'regime-vol'
+  if (regime === 'ranging') return 'text-success'
+  if (regime === 'trending_up') return 'text-accent'
+  if (regime === 'trending_down') return 'text-danger'
+  if (regime === 'high_vol') return 'text-warning'
   return ''
+}
+
+function volClass(status) {
+  if (status === 'HIGH_VOL') return 'text-danger'
+  if (status === 'ELEVATED_VOL') return 'text-warning'
+  return 'text-success'
 }
 
 async function loadSummary() {
   loading.value = true
   try {
-    // Single parallel fetch — no triple-calling trades_exchange
     const [statusRes, tradesRes, riskRes] = await Promise.all([
       apiGet('/api/status_all'),
       apiGet('/api/trades_exchange'),
       apiGet('/api/risk_status'),
     ])
-
-    // DEBUG: Log API responses
-    console.log('statusRes:', statusRes)
-    console.log('tradesRes:', tradesRes)
-    console.log('riskRes:', riskRes)
-
-    // Risk status
-    if (riskRes.success && riskRes.data) {
-      riskStatus.value = riskRes.data
-    }
-
-    // ── Status / positions ──
+    if (riskRes.success && riskRes.data) riskStatus.value = riskRes.data
     if (statusRes.success && statusRes.data) {
       const slots = statusRes.data
-      console.log('slots:', slots)
       const firstKey = Object.keys(slots)[0]
-      console.log('firstKey:', firstKey, 'equity:', firstKey ? slots[firstKey].equity : null)
       if (firstKey) equity.value = slots[firstKey].equity || 0
       positions.value = Object.entries(slots).flatMap(([sym, data]) => {
         const live = data.live || {}
         const mid = live.mid || 0
         const rows = []
-        // SHORT side
         if ((live.short_qty || 0) > 0 && live.short_avg && mid) {
           const pnl = (live.short_avg - mid) * live.short_qty
-          rows.push({
-            symbol: sym.split(':')[0],
-            side: 'short',
-            qty: live.short_qty,
-            notional: live.short_qty * mid,
-            pnl,
-          })
+          rows.push({ symbol: sym.split(':')[0], side: 'short', qty: live.short_qty, notional: live.short_qty * mid, pnl })
         }
-        // LONG side
         if ((live.long_qty || 0) > 0 && live.long_avg && mid) {
           const pnl = (mid - live.long_avg) * live.long_qty
-          rows.push({
-            symbol: sym.split(':')[0],
-            side: 'long',
-            qty: live.long_qty,
-            notional: live.long_qty * mid,
-            pnl,
-          })
+          rows.push({ symbol: sym.split(':')[0], side: 'long', qty: live.long_qty, notional: live.long_qty * mid, pnl })
         }
         return rows
       })
       unrealizedPnl.value = positions.value.reduce((s, p) => s + p.pnl, 0)
     }
-
-    // ── Trades (single fetch, used for all three stats blocks) ──
     if (tradesRes.success && tradesRes.data) {
       const allTrades = tradesRes.data || []
-      
-      // Handle timestamp - API returns milliseconds, sessionStartTs is in seconds
       const sessionStartMs = sessionStartTs.value * 1000
       const sessionTrades = allTrades.filter(t => (t.ts || 0) >= sessionStartMs)
-      
-      // Use all trades if session filter returns empty (fallback)
       const displayTrades = sessionTrades.length > 0 ? sessionTrades : allTrades
-      
-      // Today's PnL still uses midnight for display
       const now = new Date()
       const midnightMs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
-      dailyPnl.value = allTrades
-        .filter(t => (t.ts || 0) >= midnightMs)
-        .reduce((s, t) => s + (t.pnl || 0), 0)
-
-      // Session stats (for chart and performance)
-      const wins   = displayTrades.filter(t => (t.pnl || 0) > 0)
+      dailyPnl.value = allTrades.filter(t => (t.ts || 0) >= midnightMs).reduce((s, t) => s + (t.pnl || 0), 0)
+      const wins = displayTrades.filter(t => (t.pnl || 0) > 0)
       const losses = displayTrades.filter(t => (t.pnl || 0) < 0)
-      stats.value.allTimePnl   = displayTrades.reduce((s, t) => s + (t.pnl || 0), 0)
-      stats.value.totalTrades  = displayTrades.length
-      stats.value.winRate      = displayTrades.length ? ((wins.length / displayTrades.length) * 100).toFixed(1) : 0
+      stats.value.allTimePnl = displayTrades.reduce((s, t) => s + (t.pnl || 0), 0)
+      stats.value.totalTrades = displayTrades.length
+      stats.value.winRate = displayTrades.length ? ((wins.length / displayTrades.length) * 100).toFixed(1) : 0
       const grossProfit = wins.reduce((s, t) => s + (t.pnl || 0), 0)
-      const grossLoss   = Math.abs(losses.reduce((s, t) => s + (t.pnl || 0), 0))
-      stats.value.profitFactor  = grossLoss > 0
-        ? (grossProfit / grossLoss).toFixed(2)
-        : (grossProfit > 0 ? '∞' : '0.00')
-
-      // Equity curve chart uses display trades
+      const grossLoss = Math.abs(losses.reduce((s, t) => s + (t.pnl || 0), 0))
+      stats.value.profitFactor = grossLoss > 0 ? (grossProfit / grossLoss).toFixed(2) : (grossProfit > 0 ? '∞' : '0.00')
       buildChart(displayTrades)
     }
   } catch (e) { console.error('loadSummary error', e) }
@@ -190,12 +133,12 @@ function buildChart(allTrades) {
         labels,
         datasets: [{
           data,
-          borderColor: '#00d4ff',
-          tension: 0.1,
+          borderColor: 'var(--accent)',
+          tension: 0.3,
           pointRadius: 0,
           borderWidth: 2,
           fill: true,
-          backgroundColor: 'rgba(0,212,255,0.07)',
+          backgroundColor: 'rgba(88,166,255,0.08)',
         }]
       },
       options: {
@@ -221,100 +164,121 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="home-tab">
-    <!-- Risk Management Status Panel -->
-    <div class="card risk-card">
-      <h3>🛡️ Risk Status</h3>
+  <div class="home-view">
+    <!-- Risk Status -->
+    <div class="card mb-3">
+      <div class="card-header">
+        <h2 class="card-title">🛡️ Risk Status</h2>
+      </div>
       <div class="risk-grid">
-        <div class="risk-item">
-          <span class="risk-label">Regime</span>
-          <span class="risk-value" :class="getRegimeClass(riskStatus.regime)">
+        <div class="risk-tile">
+          <span class="risk-tile__label">Regime</span>
+          <span class="risk-tile__value" :class="getRegimeClass(riskStatus.regime)">
             {{ getRegimeIcon(riskStatus.regime) }} {{ riskStatus.regime }}
           </span>
-          <span class="risk-sub">{{ Math.round(riskStatus.regime_confidence * 100) }}% confidence</span>
+          <span class="risk-tile__sub">{{ Math.round(riskStatus.regime_confidence * 100) }}% confidence</span>
         </div>
-        <div class="risk-item">
-          <span class="risk-label">Volatility</span>
-          <span class="risk-value" :class="riskStatus.volatility.status === 'HIGH_VOL' ? 'red' : riskStatus.volatility.status === 'ELEVATED_VOL' ? 'yellow' : 'green'">
+        <div class="risk-tile">
+          <span class="risk-tile__label">Volatility</span>
+          <span class="risk-tile__value" :class="volClass(riskStatus.volatility.status)">
             {{ riskStatus.volatility.status }}
           </span>
-          <span class="risk-sub">{{ riskStatus.volatility.current_vol_pct?.toFixed(1) }}% / {{ riskStatus.volatility.target_vol_pct }}% target</span>
+          <span class="risk-tile__sub">{{ riskStatus.volatility.current_vol_pct?.toFixed(1) }}% / {{ riskStatus.volatility.target_vol_pct }}% target</span>
         </div>
-        <div class="risk-item">
-          <span class="risk-label">Rate Limit</span>
-          <span class="risk-value" :class="riskStatus.rate_limit_paused ? 'red' : 'green'">
+        <div class="risk-tile">
+          <span class="risk-tile__label">Rate Limit</span>
+          <span class="risk-tile__value" :class="riskStatus.rate_limit_paused ? 'text-danger' : 'text-success'">
             {{ riskStatus.rate_limit_paused ? '⏸️ PAUSED' : '✅ OK' }}
           </span>
-          <span class="risk-sub">{{ riskStatus.rate_limit_usage_pct?.toFixed(0) }}% used</span>
+          <span class="risk-tile__sub">{{ riskStatus.rate_limit_usage_pct?.toFixed(0) }}% used</span>
         </div>
-        <div class="risk-item">
-          <span class="risk-label">Mode</span>
-          <span class="risk-value" :class="riskStatus.bidirectional ? 'yellow' : 'green'">
+        <div class="risk-tile">
+          <span class="risk-tile__label">Mode</span>
+          <span class="risk-tile__value" :class="riskStatus.bidirectional ? 'text-warning' : 'text-success'">
             {{ riskStatus.bidirectional ? '↔️ Bidirectional' : '➡️ Unidirectional' }}
           </span>
-          <span class="risk-sub">Max ${{ riskStatus.max_inventory_usd }}/coin</span>
+          <span class="risk-tile__sub">Max ${{ riskStatus.max_inventory_usd }}/coin</span>
         </div>
       </div>
     </div>
 
-    <div class="card summary-card">
-      <h3>💰 Account Summary</h3>
-      <div class="summary-metrics">
-        <div class="metric">
-          <span class="label">Equity</span>
-          <span class="value">${{ Number(equity).toFixed(2) }}</span>
+    <!-- Account Summary -->
+    <div class="card mb-3">
+      <div class="card-header">
+        <h2 class="card-title">💰 Account</h2>
+      </div>
+      <div class="metrics-row">
+        <div class="metric-tile">
+          <span class="metric-tile__label">Equity</span>
+          <span class="metric-tile__value">${{ Number(equity).toFixed(2) }}</span>
         </div>
-        <div class="metric">
-          <span class="label">Unrealized</span>
-          <span class="value" :class="unrealizedPnl >= 0 ? 'green' : 'red'">
+        <div class="metric-tile">
+          <span class="metric-tile__label">Unrealized</span>
+          <span class="metric-tile__value" :class="unrealizedPnl >= 0 ? 'text-success' : 'text-danger'">
             ${{ Number(unrealizedPnl).toFixed(2) }}
           </span>
         </div>
-        <div class="metric">
-          <span class="label">Today's P&amp;L</span>
-          <span class="value" :class="dailyPnl >= 0 ? 'green' : 'red'">
+        <div class="metric-tile">
+          <span class="metric-tile__label">Today's P&L</span>
+          <span class="metric-tile__value" :class="dailyPnl >= 0 ? 'text-success' : 'text-danger'">
             {{ dailyPnl >= 0 ? '+' : '' }}${{ Number(dailyPnl).toFixed(2) }}
           </span>
         </div>
       </div>
-      <div class="mini-chart"><canvas ref="canvas" height="80"></canvas></div>
-    </div>
-
-    <div class="card positions-card">
-      <h3>📌 Open Positions</h3>
-      <div v-if="loading"><SkeletonCard /></div>
-      <div v-else-if="positions.length === 0" class="empty-positions">😴 No open positions.</div>
-      <div v-for="pos in positions" :key="pos.symbol + pos.side" class="position-row">
-        <span class="symbol">{{ pos.symbol }}</span>
-        <span class="side" :class="pos.side === 'short' ? 'red' : 'green'">{{ pos.side }}</span>
-        <span class="notional">${{ pos.notional.toFixed(2) }}</span>
-        <span class="pnl" :class="pos.pnl >= 0 ? 'green' : 'red'">{{ pos.pnl >= 0 ? '+' : '' }}${{ pos.pnl.toFixed(2) }}</span>
+      <div class="chart-wrap">
+        <canvas ref="canvas" height="80"></canvas>
       </div>
     </div>
 
-    <div class="card summary-card">
-      <div class="perf-header">
-        <h3>📊 Performance</h3>
-        <button @click="resetSessionPnl" class="btn-reset-pnl">🔄 Reset Session</button>
+    <!-- Positions -->
+    <div class="card mb-3">
+      <div class="card-header">
+        <h2 class="card-title">📌 Positions</h2>
+      </div>
+      <div v-if="loading"><SkeletonCard /></div>
+      <div v-else-if="positions.length === 0" class="empty-state">No open positions</div>
+      <div v-else class="positions-list">
+        <div v-for="pos in positions" :key="pos.symbol + pos.side" class="position-row">
+          <div class="flex items-center gap-2">
+            <span class="position-row__symbol">{{ pos.symbol }}</span>
+            <span :class="['badge', pos.side === 'short' ? 'badge-danger' : 'badge-success']">
+              {{ pos.side }}
+            </span>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="font-mono text-sm">${{ pos.notional.toFixed(2) }}</span>
+            <span :class="['font-mono text-sm font-bold', pos.pnl >= 0 ? 'text-success' : 'text-danger']">
+              {{ pos.pnl >= 0 ? '+' : '' }}${{ pos.pnl.toFixed(2) }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Performance -->
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">📊 Performance</h2>
+        <button @click="resetSessionPnl" class="btn btn-sm btn-ghost">🔄 Reset</button>
       </div>
       <div class="stats-grid">
-        <div class="stat-item">
-          <span class="stat-label">Session P&amp;L</span>
-          <span class="stat-value" :class="stats.allTimePnl >= 0 ? 'green' : 'red'">
+        <div class="stat-tile">
+          <span class="stat-tile__label">Session P&L</span>
+          <span class="stat-tile__value" :class="stats.allTimePnl >= 0 ? 'text-success' : 'text-danger'">
             ${{ stats.allTimePnl.toFixed(2) }}
           </span>
         </div>
-        <div class="stat-item">
-          <span class="stat-label">Total Trades</span>
-          <span class="stat-value">{{ stats.totalTrades }}</span>
+        <div class="stat-tile">
+          <span class="stat-tile__label">Trades</span>
+          <span class="stat-tile__value">{{ stats.totalTrades }}</span>
         </div>
-        <div class="stat-item">
-          <span class="stat-label">Win Rate</span>
-          <span class="stat-value">{{ stats.winRate }}%</span>
+        <div class="stat-tile">
+          <span class="stat-tile__label">Win Rate</span>
+          <span class="stat-tile__value">{{ stats.winRate }}%</span>
         </div>
-        <div class="stat-item">
-          <span class="stat-label">Profit Factor</span>
-          <span class="stat-value">{{ stats.profitFactor }}</span>
+        <div class="stat-tile">
+          <span class="stat-tile__label">Profit Factor</span>
+          <span class="stat-tile__value">{{ stats.profitFactor }}</span>
         </div>
       </div>
     </div>
@@ -322,51 +286,82 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.home-tab { padding: 12px; }
-.card { background: #16213e; border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
-h3 { color: #00d4ff; font-size: 14px; margin-bottom: 10px; text-transform: uppercase; }
-.summary-metrics { display: flex; gap: 20px; }
-.metric { display: flex; flex-direction: column; }
-.label { font-size: 10px; color: #8888aa; text-transform: uppercase; }
-.value { font-size: 20px; font-weight: bold; font-family: monospace; }
-.green { color: #00ff88; }
-.red   { color: #ff4757; }
-.yellow { color: #ffd43b; }
-.mini-chart { height: 80px; margin-top: 12px; }
-.position-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #2a2a4a; font-size: 13px; }
-.symbol { font-weight: bold; min-width: 80px; }
-.side { text-transform: uppercase; min-width: 50px; }
-.notional { font-family: monospace; margin-left: auto; margin-right: 10px; }
-.pnl { font-family: monospace; }
-.empty-positions { color: #666; font-size: 13px; text-align: center; padding: 16px 0; }
-.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.stat-item { display: flex; flex-direction: column; }
-.stat-label { font-size: 10px; color: #8888aa; text-transform: uppercase; }
-.stat-value { font-size: 14px; font-weight: bold; font-family: monospace; }
-/* Risk Status Panel */
-.risk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.risk-item { display: flex; flex-direction: column; background: #1a2744; padding: 10px; border-radius: 8px; }
-.risk-label { font-size: 9px; color: #8888aa; text-transform: uppercase; margin-bottom: 4px; }
-.risk-value { font-size: 12px; font-weight: bold; }
-.risk-sub { font-size: 9px; color: #666; margin-top: 2px; }
-.regime-ranging { color: #00ff88; }
-.regime-up { color: #00d4ff; }
-.regime-down { color: #ff4757; }
-.regime-vol { color: #ffd43b; }
-.perf-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-.perf-header h3 { margin-bottom: 0; }
-.btn-reset-pnl {
-  background: transparent;
-  border: 1px solid #444;
-  color: #888;
-  padding: 4px 10px;
-  border-radius: 4px;
-  font-size: 11px;
-  cursor: pointer;
-  transition: all 0.2s;
+.home-view { padding-bottom: var(--space-4); }
+
+/* Risk grid */
+.risk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
+.risk-tile {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
 }
-.btn-reset-pnl:hover {
-  border-color: #00d4ff;
-  color: #00d4ff;
+.risk-tile__label {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+.risk-tile__value { font-size: var(--text-sm); font-weight: 700; margin-top: 2px; }
+.risk-tile__sub { font-size: var(--text-xs); color: var(--text-muted); margin-top: 2px; }
+
+/* Metrics row */
+.metrics-row { display: flex; gap: var(--space-4); margin-bottom: var(--space-3); }
+.metric-tile { display: flex; flex-direction: column; }
+.metric-tile__label {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+.metric-tile__value {
+  font-family: var(--font-mono);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text-primary);
+}
+
+/* Chart */
+.chart-wrap { height: 80px; margin-top: var(--space-3); }
+
+/* Positions */
+.positions-list { display: flex; flex-direction: column; }
+.position-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.position-row:last-child { border-bottom: none; }
+.position-row__symbol { font-weight: 700; color: var(--text-primary); }
+
+/* Stats grid */
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); }
+.stat-tile {
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+}
+.stat-tile__label {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+.stat-tile__value {
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  font-weight: 700;
+  margin-top: 2px;
+  color: var(--text-primary);
 }
 </style>

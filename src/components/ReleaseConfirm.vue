@@ -11,16 +11,12 @@ onMounted(() => { show.value = true })
 
 function close() {
   show.value = false
-  // Even if the user cancels, we still need to clear the selection
   emit('released')
 }
 
 async function release() {
-  try {
-    await apiPost('/api/release_slot', { symbol: props.symbol })
-  } catch (e) {
-    console.error(e)
-  }
+  try { await apiPost('/api/release_slot', { symbol: props.symbol }) }
+  catch (e) { console.error(e) }
   show.value = false
   emit('released')
   postEvent('web_app_trigger_haptic_feedback', { type:'notification', notification_style:'warning' })
@@ -28,20 +24,41 @@ async function release() {
 </script>
 
 <template>
-  <div v-if="show" class="modal" @click.self="close">
-    <div class="modal-content">
-      <h3>Release Slot?</h3>
-      <p>Close position and remove {{ symbol.split(':')[0] }}</p>
-      <button class="btn" @click="release">Yes</button>
-      <button class="btn cancel" @click="close">No</button>
+  <Transition name="modal">
+    <div v-if="show" class="modal-backdrop" @click.self="close">
+      <div class="modal-panel">
+        <h3 class="text-lg font-bold text-center mb-2">Release Slot?</h3>
+        <p class="text-secondary text-sm text-center mb-4">Close position and remove {{ symbol.split(':')[0] }}</p>
+        <div class="flex flex-col gap-2">
+          <button class="btn btn-danger btn-block" @click="release">Yes, Release</button>
+          <button class="btn btn-ghost btn-block" @click="close">Cancel</button>
+        </div>
+      </div>
     </div>
-  </div>
+  </Transition>
 </template>
 
 <style scoped>
-.modal { position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); display:flex; justify-content:center; align-items:center; z-index:2000; }
-.modal-content { background:#16213e; border-radius:12px; padding:20px; width:90%; max-width:400px; text-align:center; }
-h3 { color:#00d4ff; }
-.btn { margin-top:8px; width:100%; padding:12px; border:none; border-radius:8px; font-size:16px; color:#fff; background:#3742fa; cursor:pointer; }
-.cancel { background:#555; }
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+  backdrop-filter: blur(4px);
+}
+.modal-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  width: 90%;
+  max-width: 360px;
+  box-shadow: var(--shadow-md);
+}
+
+.modal-enter-active, .modal-leave-active { transition: opacity 0.2s ease; }
+.modal-enter-from, .modal-leave-to { opacity: 0; }
 </style>

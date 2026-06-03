@@ -12,9 +12,7 @@ const sortedTrades = computed(() => {
   const sorted = [...trades.value]
   sorted.sort((a, b) => {
     let valA = a[sortKey.value], valB = b[sortKey.value]
-    if (sortKey.value === 'ts' || sortKey.value === 'pnl') {
-      valA = Number(valA); valB = Number(valB)
-    }
+    if (sortKey.value === 'ts' || sortKey.value === 'pnl') { valA = Number(valA); valB = Number(valB) }
     if (valA < valB) return sortOrder.value === 'asc' ? -1 : 1
     if (valA > valB) return sortOrder.value === 'asc' ? 1 : -1
     return 0
@@ -52,36 +50,46 @@ onUnmounted(() => clearInterval(interval))
 
 <template>
   <div class="card">
-    <h3>📋 Recent Trades</h3>
-    <table>
-      <thead><tr>
-        <th @click="toggleSort('ts')">Time ▾</th>
-        <th @click="toggleSort('symbol')">Symbol ▾</th>
-        <th @click="toggleSort('side')">Side ▾</th>
-        <th @click="toggleSort('pnl')">P&L ▾</th>
-      </tr></thead>
-      <tbody>
-        <tr v-for="t in sortedTrades" :key="t.ts">
-          <td>{{ formatTime(t.ts) }}</td>
-          <td>{{ t.symbol }}</td>
-          <td>{{ t.side }}</td>
-          <td :class="t.pnl >= 0 ? 'green' : 'red'">{{ t.pnl.toFixed(4) }}</td>
-        </tr>
-      </tbody>
-    </table>
-    <button v-if="hasMore" class="load-more" @click="loadMore">Load more trades</button>
-    <p v-else class="end-msg">All trades loaded.</p>
+    <div class="card-header">
+      <h2 class="card-title">📋 Trades</h2>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th @click="toggleSort('ts')">Time <span class="sort-indicator">{{ sortKey==='ts' ? (sortOrder==='asc'?'▲':'▼') : '' }}</span></th>
+            <th @click="toggleSort('symbol')">Sym <span class="sort-indicator">{{ sortKey==='symbol' ? (sortOrder==='asc'?'▲':'▼') : '' }}</span></th>
+            <th @click="toggleSort('side')">Side <span class="sort-indicator">{{ sortKey==='side' ? (sortOrder==='asc'?'▲':'▼') : '' }}</span></th>
+            <th @click="toggleSort('pnl')" class="text-right">P&L <span class="sort-indicator">{{ sortKey==='pnl' ? (sortOrder==='asc'?'▲':'▼') : '' }}</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="t in sortedTrades" :key="t.ts" class="trade-row">
+            <td class="text-muted">{{ formatTime(t.ts) }}</td>
+            <td class="font-bold">{{ t.symbol }}</td>
+            <td>
+              <span :class="['badge', t.side === 'short' ? 'badge-danger' : 'badge-success']">{{ t.side }}</span>
+            </td>
+            <td :class="['text-right font-mono font-bold', t.pnl >= 0 ? 'text-success' : 'text-danger']">
+              {{ t.pnl >= 0 ? '+' : '' }}{{ t.pnl.toFixed(4) }}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="table-footer">
+      <button v-if="hasMore" class="btn btn-block btn-secondary" @click="loadMore">Load more</button>
+      <span v-else class="text-muted text-sm text-center">All trades loaded</span>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.card { background:#16213e; border-radius:12px; padding:16px; margin-bottom:12px; box-shadow:0 2px 8px rgba(0,0,0,0.3); }
-h3 { color:#00d4ff; font-size:13px; margin-bottom:10px; }
-table { width:100%; border-collapse:collapse; font-size:12px; }
-th { color:#8888aa; text-align:left; padding:4px; border-bottom:1px solid #2a2a4a; cursor:pointer; user-select:none; }
-th:hover { color:#fff; }
-td { padding:4px; }
-.green { color:#00ff88; } .red { color:#ff4757; }
-.load-more { margin-top:10px; width:100%; padding:8px; border:none; border-radius:8px; background:#3742fa; color:#fff; font-weight:600; cursor:pointer; }
-.end-msg { text-align:center; font-size:12px; color:#8888aa; margin-top:8px; }
+.table-wrap { overflow-x: auto; margin: 0 calc(-1 * var(--space-4)); padding: 0 var(--space-4); }
+table { font-size: var(--text-sm); white-space: nowrap; }
+th { cursor: pointer; user-select: none; transition: color var(--transition-fast); }
+th:hover { color: var(--text-primary); }
+.sort-indicator { font-size: 10px; margin-left: 2px; color: var(--accent); }
+trade-row:hover { background: var(--bg-hover); }
+.table-footer { margin-top: var(--space-3); }
 </style>

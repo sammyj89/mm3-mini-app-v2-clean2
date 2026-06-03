@@ -8,31 +8,25 @@
 </template>
 
 <style scoped>
-.card {
-  background: #16213e;
-  border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-}
+.skeleton-card { border: 1px solid var(--border); }
 .skeleton-line {
   height: 14px;
-  background: linear-gradient(90deg, #2a2a4a 25%, #3a3a5a 50%, #2a2a4a 75%);
+  background: linear-gradient(90deg, var(--border) 25%, var(--border-subtle) 50%, var(--border) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
   border-radius: 6px;
-  margin-bottom: 8px;
+  margin-bottom: var(--space-2);
 }
 .skeleton-line.wide { width: 80%; }
 .skeleton-line.medium { width: 50%; }
 .skeleton-line.short { width: 30%; }
 .skeleton-bar {
   height: 22px;
-  background: linear-gradient(90deg, #2a2a4a 25%, #3a3a5a 50%, #2a2a4a 75%);
+  background: linear-gradient(90deg, var(--border) 25%, var(--border-subtle) 50%, var(--border) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
   border-radius: 8px;
-  margin-top: 12px;
+  margin-top: var(--space-2);
 }
 @keyframes shimmer {
   0% { background-position: -200% 0; }

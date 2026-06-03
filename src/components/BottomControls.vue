@@ -5,15 +5,12 @@ import { postEvent } from '../tma'
 
 const tradingEnabled = ref(true)
 
-// Fetch real state on mount — don't assume
 onMounted(async () => {
   try {
     const res = await apiGet('/api/status_all')
     if (res.success && res.data) {
       const firstKey = Object.keys(res.data)[0]
-      if (firstKey) {
-        tradingEnabled.value = res.data[firstKey]?.trading_enabled ?? true
-      }
+      if (firstKey) tradingEnabled.value = res.data[firstKey]?.trading_enabled ?? true
     }
   } catch (e) { /* keep default */ }
 })
@@ -58,19 +55,21 @@ async function panic() {
 </script>
 
 <template>
-  <div class="card">
-    <button :class="['btn', tradingEnabled ? 'stop' : 'start']" @click="toggleTrading">
-      {{ tradingEnabled ? '⏸ STOP TRADING' : '▶ START TRADING' }}
+  <div class="controls-card">
+    <button :class="['btn btn-lg btn-block', tradingEnabled ? 'btn-warning' : 'btn-success']" @click="toggleTrading">
+      <span class="btn-icon">{{ tradingEnabled ? '⏸' : '▶' }}</span>
+      {{ tradingEnabled ? 'STOP TRADING' : 'START TRADING' }}
     </button>
-    <button class="btn" @click="dailySummary">📋 Daily Summary</button>
-    <button class="btn panic" @click="panic">⚠️ PANIC</button>
+    <button class="btn btn-secondary btn-block" @click="dailySummary">
+      <span class="btn-icon">📋</span> Daily Summary
+    </button>
+    <button class="btn btn-danger btn-block" @click="panic">
+      <span class="btn-icon">⚠️</span> PANIC
+    </button>
   </div>
 </template>
 
 <style scoped>
-.card { background:#16213e; border-radius:10px; padding:14px; margin-bottom:10px; }
-.btn { width:100%; padding:12px; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; margin-bottom:6px; color:#fff; background:#3742fa; }
-.start { background:#00ff88; color:#000; }
-.stop  { background:#ffa502; color:#000; }
-.panic { background:#ff4757; }
+.controls-card { display: flex; flex-direction: column; gap: var(--space-2); }
+.btn-icon { font-size: 16px; }
 </style>
