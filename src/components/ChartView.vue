@@ -31,9 +31,9 @@ async function loadChart() {
 
   if (chart) chart.destroy()
 
-  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#58a6ff'
-  const success = getComputedStyle(document.documentElement).getPropertyValue('--success').trim() || '#3fb950'
-  const danger = getComputedStyle(document.documentElement).getPropertyValue('--danger').trim() || '#f85149'
+  const accent = '#58a6ff'
+  const success = '#3fb950'
+  const danger = '#f85149'
 
   if (chartMode.value === 'daily') {
     const { labels, data } = groupByDay(filtered)
@@ -50,7 +50,7 @@ async function loadChart() {
       },
       options: {
         plugins: { legend: { display: false }, tooltip: { intersect: false } },
-        scales: { y: { beginAtZero: true, grid: { color: 'rgba(128,128,128,0.1)' } }, x: { grid: { display: false } } }
+        scales: { y: { beginAtZero: true, grid: { color: 'rgba(128,128,128,0.18)' } }, x: { grid: { display: false } } }
       }
     })
   } else {
@@ -74,7 +74,7 @@ async function loadChart() {
           pointRadius: 0,
           borderWidth: 2,
           fill: true,
-          backgroundColor: 'rgba(88,166,255,0.08)'
+          backgroundColor: 'rgba(88,166,255,0.15)'
         }]
       },
       options: {
@@ -85,7 +85,7 @@ async function loadChart() {
             return trade ? `${trade.symbol} ${trade.side} PnL: $${trade.pnl.toFixed(2)}` : ''
           } } }
         },
-        scales: { y: { beginAtZero: true, grid: { color: 'rgba(128,128,128,0.1)' } }, x: { grid: { display: false } } }
+        scales: { y: { beginAtZero: true, grid: { color: 'rgba(128,128,128,0.18)' } }, x: { grid: { display: false } } }
       }
     })
   }

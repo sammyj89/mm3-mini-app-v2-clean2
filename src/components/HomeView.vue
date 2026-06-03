@@ -133,12 +133,12 @@ function buildChart(allTrades) {
         labels,
         datasets: [{
           data,
-          borderColor: 'var(--accent)',
+          borderColor: '#58a6ff',
           tension: 0.3,
           pointRadius: 0,
           borderWidth: 2,
           fill: true,
-          backgroundColor: 'rgba(88,166,255,0.08)',
+          backgroundColor: 'rgba(88,166,255,0.12)',
         }]
       },
       options: {
