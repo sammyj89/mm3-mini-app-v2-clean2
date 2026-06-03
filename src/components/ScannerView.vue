@@ -76,8 +76,8 @@
             </div>
           </div>
           <div class="dual-status" :class="{ 'single-side': !bidirectionalMode && slot.preferred_side }">
-            <!-- Short -->
-            <div v-if="bidirectionalMode || slot.preferred_side !== 'long' || slot.live?.short_qty > 0" class="side-block short-block">
+            <!-- Short: show only if preferred_side is short (or not set and bidirectional/has qty) -->
+            <div v-if="slot.preferred_side ? slot.preferred_side === 'short' : (bidirectionalMode || slot.live?.short_qty > 0)" class="side-block short-block">
               <div class="side-label">Short</div>
               <div v-if="slot.live?.short_qty > 0" class="side-data">
                 <div class="pnl" :class="pnlClass(slot.live.short_qty, slot.live.short_avg, slot.live.mid, 'short')">
@@ -90,8 +90,8 @@
               </div>
               <div v-else class="flat-badge">FLAT</div>
             </div>
-            <!-- Long -->
-            <div v-if="bidirectionalMode || slot.preferred_side !== 'short' || slot.live?.long_qty > 0" class="side-block long-block">
+            <!-- Long: show only if preferred_side is long (or not set and bidirectional/has qty) -->
+            <div v-if="slot.preferred_side ? slot.preferred_side === 'long' : (bidirectionalMode || slot.live?.long_qty > 0)" class="side-block long-block">
               <div class="side-label">Long</div>
               <div v-if="slot.live?.long_qty > 0" class="side-data">
                 <div class="pnl" :class="pnlClass(slot.live.long_qty, slot.live.long_avg, slot.live.mid, 'long')">
