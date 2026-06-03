@@ -75,9 +75,39 @@
               <button @click="releaseSlot(symbol)" class="btn btn-sm btn-danger">🔓</button>
             </div>
           </div>
-          <div class="dual-status" :class="{ 'single-side': !bidirectionalMode && slot.preferred_side }">
-            <!-- Short: show only if preferred_side is short (or not set and bidirectional/has qty) -->
-            <div v-if="slot.preferred_side ? slot.preferred_side === 'short' : (bidirectionalMode || slot.live?.short_qty > 0)" class="side-block short-block">
+          <!-- Preferred side (single) — flat full-width layout -->
+          <div v-if="slot.preferred_side" class="single-side-row">
+            <span :class="['side-badge', slot.preferred_side === 'short' ? 'side-badge--short' : 'side-badge--long']">
+              {{ slot.preferred_side === 'short' ? 'SHORT' : 'LONG' }}
+            </span>
+            <template v-if="slot.preferred_side === 'short' && slot.live?.short_qty > 0">
+              <span class="side-pnl" :class="pnlClass(slot.live.short_qty, slot.live.short_avg, slot.live.mid, 'short')">
+                {{ formatPnl(slot.live.short_qty, slot.live.short_avg, slot.live.mid, 'short') }}
+              </span>
+              <div class="side-progress">
+                <div class="progress-bar">
+                  <div class="progress-fill progress-fill-danger" :style="{ width: fillPercent(slot.ladder_short) + '%' }"></div>
+                </div>
+              </div>
+              <span class="side-levels text-muted">{{ slot.ladder_short?.consumed || 0 }}/{{ slot.ladder_short?.total || 0 }} lvl</span>
+            </template>
+            <template v-else-if="slot.preferred_side === 'long' && slot.live?.long_qty > 0">
+              <span class="side-pnl" :class="pnlClass(slot.live.long_qty, slot.live.long_avg, slot.live.mid, 'long')">
+                {{ formatPnl(slot.live.long_qty, slot.live.long_avg, slot.live.mid, 'long') }}
+              </span>
+              <div class="side-progress">
+                <div class="progress-bar">
+                  <div class="progress-fill progress-fill-accent" :style="{ width: fillPercent(slot.ladder_long) + '%' }"></div>
+                </div>
+              </div>
+              <span class="side-levels text-muted">{{ slot.ladder_long?.consumed || 0 }}/{{ slot.ladder_long?.total || 0 }} lvl</span>
+            </template>
+            <span v-else class="text-muted">FLAT</span>
+          </div>
+
+          <!-- Bidirectional (both sides) — two-column layout -->
+          <div v-else class="dual-status">
+            <div v-if="bidirectionalMode || slot.live?.short_qty > 0" class="side-block short-block">
               <div class="side-label">Short</div>
               <div v-if="slot.live?.short_qty > 0" class="side-data">
                 <div class="pnl" :class="pnlClass(slot.live.short_qty, slot.live.short_avg, slot.live.mid, 'short')">
@@ -90,8 +120,7 @@
               </div>
               <div v-else class="flat-badge">FLAT</div>
             </div>
-            <!-- Long: show only if preferred_side is long (or not set and bidirectional/has qty) -->
-            <div v-if="slot.preferred_side ? slot.preferred_side === 'long' : (bidirectionalMode || slot.live?.long_qty > 0)" class="side-block long-block">
+            <div v-if="bidirectionalMode || slot.live?.long_qty > 0" class="side-block long-block">
               <div class="side-label">Long</div>
               <div v-if="slot.live?.long_qty > 0" class="side-data">
                 <div class="pnl" :class="pnlClass(slot.live.long_qty, slot.live.long_avg, slot.live.mid, 'long')">
@@ -361,6 +390,31 @@ async function rotateCustomToSlot() {
   font-size: var(--text-sm);
 }
 
-.dual-status.single-side { justify-content: center; }
-.dual-status.single-side .side-block { max-width: 200px; }
+.single-side-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  background: var(--bg-elevated);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--accent);
+}
+.single-side-row:has(.side-badge--short) { border-left-color: var(--danger); }
+
+.side-badge {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  min-width: 44px;
+  text-align: center;
+}
+.side-badge--short { background: var(--danger-soft); color: var(--danger); }
+.side-badge--long { background: var(--accent-soft); color: var(--accent); }
+
+.side-pnl { font-family: var(--font-mono); font-size: var(--text-base); font-weight: 700; }
+.side-progress { flex: 1; min-width: 80px; }
+.side-levels { font-size: var(--text-xs); font-family: var(--font-mono); white-space: nowrap; }
 </style>
