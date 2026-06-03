@@ -6,23 +6,23 @@
     </div>
 
     <div v-if="!slotData" class="empty-state">Loading slot data...</div>
-    
-    <div v-else class="dual-detail">
-      <!-- SHORT DETAILS -->
-      <div class="detail-column short-col">
+
+    <div v-else class="dual-detail" :class="{ 'single-side': slotData.preferred_side }">
+      <!-- SHORT DETAILS (hide if unidirectional + preferred long) -->
+      <div v-if="!slotData.preferred_side || slotData.preferred_side !== 'long'" class="detail-column short-col">
         <h3>🔻 Short Side</h3>
         <div v-if="slotData.live?.short_qty > 0" class="data-rows">
           <div class="row"><span class="label">Quantity:</span> <span class="value">{{ slotData.live.short_qty }}</span></div>
           <div class="row"><span class="label">Avg Entry:</span> <span class="value">{{ slotData.live.short_avg }}</span></div>
           <div class="row"><span class="label">Stop Loss:</span> <span class="value sl-value">{{ slotData.live.short_sl || 'None' }}</span></div>
           <div class="row">
-            <span class="label">Unrealized PnL:</span> 
+            <span class="label">Unrealized PnL:</span>
             <span class="value" :class="shortPnl >= 0 ? 'positive' : 'negative'">{{ shortPnl >= 0 ? '+' : '' }}${{ shortPnl.toFixed(2) }}</span>
           </div>
-          
+
           <div class="ladder-section">
             <div class="row">
-              <span class="label">Ladder Filled:</span> 
+              <span class="label">Ladder Filled:</span>
               <span class="value">{{ slotData.ladder_short?.consumed || 0 }} / {{ slotData.ladder_short?.total || 0 }}</span>
             </div>
             <div class="ladder-bar-container">
@@ -30,7 +30,7 @@
             </div>
             <div class="ladder-notional">Notional: ${{ slotData.ladder_short?.filled_notional_usd || 0 }}</div>
           </div>
-          
+
           <div class="action-buttons">
             <button @click="loadLadderDetail('short')" class="btn-sm btn-primary">📊 Levels</button>
             <button @click="resetLadder('short')" class="btn-sm btn-warning">🔄 Reset Ladder</button>
@@ -40,21 +40,21 @@
         <div v-else class="flat-state">FLAT (Waiting for seed...)</div>
       </div>
 
-      <!-- LONG DETAILS -->
-      <div class="detail-column long-col">
+      <!-- LONG DETAILS (hide if unidirectional + preferred short) -->
+      <div v-if="!slotData.preferred_side || slotData.preferred_side !== 'short'" class="detail-column long-col">
         <h3>🔺 Long Side</h3>
         <div v-if="slotData.live?.long_qty > 0" class="data-rows">
           <div class="row"><span class="label">Quantity:</span> <span class="value">{{ slotData.live.long_qty }}</span></div>
           <div class="row"><span class="label">Avg Entry:</span> <span class="value">{{ slotData.live.long_avg }}</span></div>
           <div class="row"><span class="label">Stop Loss:</span> <span class="value sl-value">{{ slotData.live.long_sl || 'None' }}</span></div>
           <div class="row">
-            <span class="label">Unrealized PnL:</span> 
+            <span class="label">Unrealized PnL:</span>
             <span class="value" :class="longPnl >= 0 ? 'positive' : 'negative'">{{ longPnl >= 0 ? '+' : '' }}${{ longPnl.toFixed(2) }}</span>
           </div>
-          
+
           <div class="ladder-section">
             <div class="row">
-              <span class="label">Ladder Filled:</span> 
+              <span class="label">Ladder Filled:</span>
               <span class="value">{{ slotData.ladder_long?.consumed || 0 }} / {{ slotData.ladder_long?.total || 0 }}</span>
             </div>
             <div class="ladder-bar-container">
@@ -166,6 +166,8 @@ h2 { color: #e0e0e0; margin: 0; }
 .btn-back { background: #2a2a4a; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
 
 .dual-detail { display: flex; gap: 16px; }
+.dual-detail.single-side { justify-content: center; }
+.dual-detail.single-side .detail-column { max-width: 320px; }
 .detail-column { flex: 1; background: #16213e; padding: 16px; border-radius: 8px; border-top: 4px solid; }
 .short-col { border-color: #ff4444; }
 .long-col { border-color: #00d4ff; }
