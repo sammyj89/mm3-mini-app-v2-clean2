@@ -79,14 +79,19 @@ async function loadSummary() {
       positions.value = Object.entries(slots).flatMap(([sym, data]) => {
         const live = data.live || {}
         const mid = live.mid || 0
+        const pref = data.preferred_side || null
         const rows = []
         if ((live.short_qty || 0) > 0 && live.short_avg && mid) {
-          const pnl = (live.short_avg - mid) * live.short_qty
-          rows.push({ symbol: sym.split(':')[0], side: 'short', qty: live.short_qty, notional: live.short_qty * mid, pnl })
+          if (!pref || pref === 'short') {
+            const pnl = (live.short_avg - mid) * live.short_qty
+            rows.push({ symbol: sym.split(':')[0], side: 'short', qty: live.short_qty, notional: live.short_qty * mid, pnl })
+          }
         }
         if ((live.long_qty || 0) > 0 && live.long_avg && mid) {
-          const pnl = (mid - live.long_avg) * live.long_qty
-          rows.push({ symbol: sym.split(':')[0], side: 'long', qty: live.long_qty, notional: live.long_qty * mid, pnl })
+          if (!pref || pref === 'long') {
+            const pnl = (mid - live.long_avg) * live.long_qty
+            rows.push({ symbol: sym.split(':')[0], side: 'long', qty: live.long_qty, notional: live.long_qty * mid, pnl })
+          }
         }
         return rows
       })
