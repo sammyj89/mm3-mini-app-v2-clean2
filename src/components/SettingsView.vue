@@ -6,12 +6,23 @@ const apiUrl = ref(getApiBase())
 const testing = ref(false)
 const testResult = ref(null)
 const bidirectionalMode = ref(true)
+// Fetch from API instead of hardcoding
+const localStopPct = ref('8%')
+const maxPerCoin = ref('$150')
 
 onMounted(async () => {
   try {
     const res = await apiGet('/api/risk_status')
     if (res.success && res.data) bidirectionalMode.value = res.data.bidirectional
   } catch (e) { console.error('Failed to load risk status', e) }
+  try {
+    const cfg = await apiGet('/api/config', { key: 'base_sl_pct' })
+    if (cfg.success && cfg.value) localStopPct.value = `${parseFloat(cfg.value).toFixed(0)}%`
+  } catch { /* keep default */ }
+  try {
+    const cfg = await apiGet('/api/config', { key: 'pw_outer_notional_usd' })
+    if (cfg.success && cfg.value) maxPerCoin.value = `$${parseFloat(cfg.value).toFixed(0)}`
+  } catch { /* keep default */ }
 })
 
 const toggleBidirectional = async () => {
@@ -100,8 +111,8 @@ const clearAndReset = () => {
       </label>
       <p class="text-sm text-secondary mt-2">{{ bidirectionalMode ? 'Trading both long and short sides' : 'Trading only scanner\'s preferred side' }}</p>
       <div class="risk-meta mt-3">
-        <div class="risk-meta__item"><span class="text-muted text-xs">Local Stop</span><span class="font-bold text-sm">8%</span></div>
-        <div class="risk-meta__item"><span class="text-muted text-xs">Max/coin</span><span class="font-bold text-sm">$150</span></div>
+        <div class="risk-meta__item"><span class="text-muted text-xs">Local Stop</span><span class="font-bold text-sm">{{ localStopPct }}</span></div>
+        <div class="risk-meta__item"><span class="text-muted text-xs">Max/coin</span><span class="font-bold text-sm">{{ maxPerCoin }}</span></div>
       </div>
     </div>
 

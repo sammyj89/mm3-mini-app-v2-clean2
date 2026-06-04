@@ -90,6 +90,6 @@ table { font-size: var(--text-sm); white-space: nowrap; }
 th { cursor: pointer; user-select: none; transition: color var(--transition-fast); }
 th:hover { color: var(--text-primary); }
 .sort-indicator { font-size: 10px; margin-left: 2px; color: var(--accent); }
-trade-row:hover { background: var(--bg-hover); }
+.trade-row:hover { background: var(--bg-hover); }
 .table-footer { margin-top: var(--space-3); }
 </style>
