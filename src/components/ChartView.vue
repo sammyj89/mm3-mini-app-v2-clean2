@@ -21,73 +21,80 @@ function groupByDay(trades) {
   return { labels: days, data: days.map(d => map[d]) }
 }
 
+let loadingChart = false
 async function loadChart() {
-  const res = await apiGet('/api/trades?days=30')
-  const trades = res.data || []
-  const now = Date.now() / 1000
-  const days = timeRanges[timeRange.value] || 7
-  const cutoff = now - days * 86400
-  const filtered = trades.filter(t => t.ts > cutoff).sort((a, b) => (a.ts || 0) - (b.ts || 0))
+  if (loadingChart) return
+  loadingChart = true
+  try {
+    const res = await apiGet('/api/trades?days=30')
+    const trades = res.data || []
+    const now = Date.now() / 1000
+    const days = timeRanges[timeRange.value] || 7
+    const cutoff = now - days * 86400
+    const filtered = trades.filter(t => t.ts > cutoff).sort((a, b) => (a.ts || 0) - (b.ts || 0))
 
-  if (chart) chart.destroy()
+    if (chart) chart.destroy()
 
-  const accent = '#58a6ff'
-  const success = '#3fb950'
-  const danger = '#f85149'
+    const accent = '#58a6ff'
+    const success = '#3fb950'
+    const danger = '#f85149'
 
-  if (chartMode.value === 'daily') {
-    const { labels, data } = groupByDay(filtered)
-    chart = new Chart(canvas.value, {
-      type: 'bar',
-      data: {
-        labels,
-        datasets: [{
-          label: 'Daily P&L',
-          data,
-          backgroundColor: data.map(v => v >= 0 ? success : danger),
-          borderRadius: 4
-        }]
-      },
-      options: {
-        plugins: { legend: { display: false }, tooltip: { intersect: false } },
-        scales: { y: { beginAtZero: true, grid: { color: 'rgba(128,128,128,0.18)' } }, x: { grid: { display: false } } }
-      }
-    })
-  } else {
-    const labels = []
-    const data = []
-    let cum = 0
-    filtered.forEach(t => {
-      cum += t.pnl || 0
-      labels.push(new Date(t.ts * 1000).toLocaleDateString('en-US', { month:'numeric', day:'numeric' }))
-      data.push(cum)
-    })
-    chart = new Chart(canvas.value, {
-      type: 'line',
-      data: {
-        labels,
-        datasets: [{
-          label: 'Cum. P&L',
-          data,
-          borderColor: accent,
-          tension: 0.3,
-          pointRadius: 0,
-          borderWidth: 2,
-          fill: true,
-          backgroundColor: 'rgba(88,166,255,0.15)'
-        }]
-      },
-      options: {
-        plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { label: (ctx) => {
-            const trade = filtered[ctx.dataIndex]
-            return trade ? `${trade.symbol} ${trade.side} PnL: $${trade.pnl.toFixed(2)}` : ''
-          } } }
+    if (chartMode.value === 'daily') {
+      const { labels, data } = groupByDay(filtered)
+      chart = new Chart(canvas.value, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Daily P&L',
+            data,
+            backgroundColor: data.map(v => v >= 0 ? success : danger),
+            borderRadius: 4
+          }]
         },
-        scales: { y: { beginAtZero: true, grid: { color: 'rgba(128,128,128,0.18)' } }, x: { grid: { display: false } } }
-      }
-    })
+        options: {
+          plugins: { legend: { display: false }, tooltip: { intersect: false } },
+          scales: { y: { beginAtZero: true, grid: { color: 'rgba(128,128,128,0.18)' } }, x: { grid: { display: false } } }
+        }
+      })
+    } else {
+      const labels = []
+      const data = []
+      let cum = 0
+      filtered.forEach(t => {
+        cum += t.pnl || 0
+        labels.push(new Date(t.ts * 1000).toLocaleDateString('en-US', { month:'numeric', day:'numeric' }))
+        data.push(cum)
+      })
+      chart = new Chart(canvas.value, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Cum. P&L',
+            data,
+            borderColor: accent,
+            tension: 0.3,
+            pointRadius: 0,
+            borderWidth: 2,
+            fill: true,
+            backgroundColor: 'rgba(88,166,255,0.15)'
+          }]
+        },
+        options: {
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: (ctx) => {
+              const trade = filtered[ctx.dataIndex]
+              return trade ? `${trade.symbol} ${trade.side} PnL: $${trade.pnl.toFixed(2)}` : ''
+            } } }
+          },
+          scales: { y: { beginAtZero: true, grid: { color: 'rgba(128,128,128,0.18)' } }, x: { grid: { display: false } } }
+        }
+      })
+    }
+  } finally {
+    loadingChart = false
   }
 }
 

@@ -28,5 +28,9 @@ export default defineConfig({
   server: {
     // Exposes your dev server and makes it accessible for the devices in the same network.
     host: true,
+    // Proxy API calls during local dev. Set VITE_API_PROXY_TARGET in .env.local
+    proxy: process.env.VITE_API_PROXY_TARGET
+      ? { '/api': { target: process.env.VITE_API_PROXY_TARGET, changeOrigin: true } }
+      : undefined,
   },
 })

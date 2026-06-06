@@ -32,7 +32,10 @@ function selectSymbol(sym) {
   currentTab.value = 'drill_down'
 }
 
+let loadingGlobals = false
 async function loadGlobals() {
+  if (loadingGlobals) return
+  loadingGlobals = true
   try {
     const [res, tradesRes] = await Promise.all([
       apiGet('/api/status_all'),
@@ -53,7 +56,11 @@ async function loadGlobals() {
       const todayTrades = tradesRes.data.filter(t => t.ts >= midnightTs)
       dailyPnl.value = todayTrades.reduce((sum, t) => sum + (t.pnl || 0), 0)
     }
-  } catch (e) { console.error('loadGlobals error', e) }
+  } catch (e) {
+    console.error('loadGlobals error', e)
+  } finally {
+    loadingGlobals = false
+  }
 }
 
 async function checkConnection() {
@@ -68,7 +75,7 @@ onMounted(() => {
   autoResolveUrl()
   loadGlobals()
   checkConnection()
-  globalInterval = setInterval(() => { loadGlobals(); checkConnection() }, 10000)
+  globalInterval = setInterval(() => { loadGlobals(); checkConnection() }, 30000)
 })
 onUnmounted(() => clearInterval(globalInterval))
 

@@ -18,7 +18,7 @@ export function clearApiBase() {
 export async function apiGet(path, params = {}) {
   const url = new URL(`${getApiBase()}${path}`)
   Object.entries(params).forEach(([k, v]) => url.searchParams.append(k, v))
-  const res = await fetch(url, { signal: AbortSignal.timeout(8000) }) // 8s timeout
+  const res = await fetch(url, { signal: AbortSignal.timeout(25000) }) // 25s for slow tunnels
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.json()
 }

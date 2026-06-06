@@ -63,7 +63,10 @@ function volClass(status) {
   return 'text-success'
 }
 
+let loadingSummary = false
 async function loadSummary() {
+  if (loadingSummary) return
+  loadingSummary = true
   loading.value = true
   try {
     const [statusRes, tradesRes, riskRes] = await Promise.all([
@@ -115,8 +118,12 @@ async function loadSummary() {
       stats.value.profitFactor = grossLoss > 0 ? (grossProfit / grossLoss).toFixed(2) : (grossProfit > 0 ? '∞' : '0.00')
       buildChart(displayTrades)
     }
-  } catch (e) { console.error('loadSummary error', e) }
-  loading.value = false
+  } catch (e) {
+    console.error('loadSummary error', e)
+  } finally {
+    loading.value = false
+    loadingSummary = false
+  }
 }
 
 function buildChart(allTrades) {

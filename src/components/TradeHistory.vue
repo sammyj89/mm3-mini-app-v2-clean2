@@ -38,11 +38,15 @@ function formatTime(ts) {
 function loadMore() { currentPage.value++ }
 
 let interval = null
+let loadingTrades = false
 async function loadTrades() {
+  if (loadingTrades) return
+  loadingTrades = true
   try {
     const res = await apiGet('/api/trades?days=7')
     trades.value = res.data || []
   } catch (e) { console.error('loadTrades error', e) }
+  finally { loadingTrades = false }
 }
 onMounted(() => { loadTrades(); interval = setInterval(loadTrades, 30000) })
 onUnmounted(() => clearInterval(interval))
