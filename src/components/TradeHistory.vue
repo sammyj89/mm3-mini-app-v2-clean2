@@ -40,7 +40,7 @@ function loadMore() { currentPage.value++ }
 let interval = null
 async function loadTrades() {
   try {
-    const res = await apiGet('/api/trades_exchange')
+    const res = await apiGet('/api/trades?days=7')
     trades.value = res.data || []
   } catch (e) { console.error('loadTrades error', e) }
 }

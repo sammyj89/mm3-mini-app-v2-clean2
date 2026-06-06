@@ -22,7 +22,7 @@ function groupByDay(trades) {
 }
 
 async function loadChart() {
-  const res = await apiGet('/api/trades_exchange')
+  const res = await apiGet('/api/trades?days=30')
   const trades = res.data || []
   const now = Date.now() / 1000
   const days = timeRanges[timeRange.value] || 7

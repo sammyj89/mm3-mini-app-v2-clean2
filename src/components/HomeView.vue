@@ -68,7 +68,7 @@ async function loadSummary() {
   try {
     const [statusRes, tradesRes, riskRes] = await Promise.all([
       apiGet('/api/status_all'),
-      apiGet('/api/trades_exchange'),
+      apiGet('/api/trades?days=7'),
       apiGet('/api/risk_status'),
     ])
     if (riskRes.success && riskRes.data) riskStatus.value = riskRes.data
@@ -99,12 +99,12 @@ async function loadSummary() {
     }
     if (tradesRes.success && tradesRes.data) {
       const allTrades = tradesRes.data || []
-      const sessionStartMs = sessionStartTs.value * 1000
-      const sessionTrades = allTrades.filter(t => (t.ts || 0) >= sessionStartMs)
+      const sessionStartSec = sessionStartTs.value
+      const sessionTrades = allTrades.filter(t => (t.ts || 0) >= sessionStartSec)
       const displayTrades = sessionTrades.length > 0 ? sessionTrades : allTrades
       const now = new Date()
-      const midnightMs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
-      dailyPnl.value = allTrades.filter(t => (t.ts || 0) >= midnightMs).reduce((s, t) => s + (t.pnl || 0), 0)
+      const midnightSec = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000
+      dailyPnl.value = allTrades.filter(t => (t.ts || 0) >= midnightSec).reduce((s, t) => s + (t.pnl || 0), 0)
       const wins = displayTrades.filter(t => (t.pnl || 0) > 0)
       const losses = displayTrades.filter(t => (t.pnl || 0) < 0)
       stats.value.allTimePnl = displayTrades.reduce((s, t) => s + (t.pnl || 0), 0)

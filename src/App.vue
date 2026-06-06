@@ -36,7 +36,7 @@ async function loadGlobals() {
   try {
     const [res, tradesRes] = await Promise.all([
       apiGet('/api/status_all'),
-      apiGet('/api/trades_exchange'),
+      apiGet('/api/trades?days=1'),
     ])
     if (res.success && res.data) {
       slots.value = res.data
