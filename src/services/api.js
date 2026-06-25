@@ -15,10 +15,30 @@ export function clearApiBase() {
   localStorage.removeItem('mm3_api_base')
 }
 
+export function getApiKey() {
+  return localStorage.getItem('mm3_api_key') || ''
+}
+
+export function setApiKey(key) {
+  localStorage.setItem('mm3_api_key', key)
+}
+
+export function clearApiKey() {
+  localStorage.removeItem('mm3_api_key')
+}
+
+function authHeaders() {
+  const key = getApiKey()
+  return key ? { Authorization: `Bearer ${key}` } : {}
+}
+
 export async function apiGet(path, params = {}) {
   const url = new URL(`${getApiBase()}${path}`)
   Object.entries(params).forEach(([k, v]) => url.searchParams.append(k, v))
-  const res = await fetch(url, { signal: AbortSignal.timeout(25000) }) // 25s for slow tunnels
+  const res = await fetch(url, {
+    headers: authHeaders(),
+    signal: AbortSignal.timeout(25000),
+  })
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.json()
 }
@@ -26,9 +46,9 @@ export async function apiGet(path, params = {}) {
 export async function apiPost(path, body = {}) {
   const res = await fetch(`${getApiBase()}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: Object.keys(body).length ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.timeout(60000),  // 🔧 FIX: 60s for rotation/scanner
+    signal: AbortSignal.timeout(60000),
   })
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.json()
@@ -39,7 +59,8 @@ export async function apiPostQuery(path, params = {}) {
   Object.entries(params).forEach(([k, v]) => url.searchParams.append(k, v))
   const res = await fetch(url.toString(), {
     method: 'POST',
-    signal: AbortSignal.timeout(90000), // 90s — rotation can take time
+    headers: authHeaders(),
+    signal: AbortSignal.timeout(90000),
   })
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.json()

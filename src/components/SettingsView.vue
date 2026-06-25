@@ -1,8 +1,9 @@
 <script setup>
 import { ref, onMounted } from 'vue'
-import { getApiBase, setApiBase, apiGet, apiPost } from '../services/api'
+import { getApiBase, setApiBase, getApiKey, setApiKey, apiGet, apiPost } from '../services/api'
 
 const apiUrl = ref(getApiBase())
+const apiKey = ref(getApiKey())
 const testing = ref(false)
 const testResult = ref(null)
 const bidirectionalMode = ref(true)
@@ -36,6 +37,7 @@ const saveAndReload = () => {
     return
   }
   setApiBase(apiUrl.value)
+  setApiKey(apiKey.value)
   window.location.reload()
 }
 
@@ -58,8 +60,9 @@ const testConnection = async () => {
 }
 
 const clearAndReset = () => {
-  if (confirm('Clear saved URL and reload?')) {
+  if (confirm('Clear saved URL and API key, then reload?')) {
     localStorage.removeItem('mm3_api_base')
+    localStorage.removeItem('mm3_api_key')
     window.location.reload()
   }
 }
@@ -72,10 +75,13 @@ const clearAndReset = () => {
       <div class="card-header">
         <h2 class="card-title">🔗 API Connection</h2>
       </div>
-      <p class="text-secondary text-sm mb-3">Enter your Cloudflare tunnel URL</p>
+      <p class="text-secondary text-sm mb-3">Enter your API server URL and key</p>
       <div class="flex gap-2 mb-3">
-        <input v-model="apiUrl" placeholder="https://your-tunnel.trycloudflare.com" class="input flex-1" @keyup.enter="saveAndReload" />
+        <input v-model="apiUrl" placeholder="http://35.211.112.223:8000" class="input flex-1" @keyup.enter="saveAndReload" />
         <button @click="saveAndReload" class="btn btn-primary">Save</button>
+      </div>
+      <div class="flex gap-2 mb-3">
+        <input v-model="apiKey" type="password" placeholder="API Key (optional)" class="input flex-1" @keyup.enter="saveAndReload" />
       </div>
       <button @click="testConnection" class="btn btn-block btn-secondary" :disabled="testing">
         {{ testing ? 'Testing…' : 'Test Connection' }}
@@ -87,13 +93,13 @@ const clearAndReset = () => {
       </Transition>
 
       <div class="helper-box mt-4">
-        <p class="font-semibold text-sm mb-2">How to find the current URL:</p>
+        <p class="font-semibold text-sm mb-2">Setup:</p>
         <ol class="text-sm text-secondary">
-          <li>SSH into your server</li>
-          <li>Run: <code>cat /tmp/tunnel_url.txt</code></li>
-          <li>Copy the URL, paste it above, then click Save</li>
+          <li>Enter the API server URL (e.g. <code>http://35.211.112.223:8000</code>)</li>
+          <li>Enter the API key if the server requires one</li>
+          <li>Click Save, then Test Connection</li>
         </ol>
-        <p class="text-xs text-muted mt-2">Free Cloudflare tunnels generate a new URL on restart.</p>
+        <p class="text-xs text-muted mt-2">The URL and key are stored in your browser only.</p>
       </div>
     </div>
 
@@ -119,8 +125,8 @@ const clearAndReset = () => {
     <!-- Danger Zone -->
     <div class="danger-card">
       <h3 class="text-danger font-bold text-sm mb-2">⚠️ Danger Zone</h3>
-      <button @click="clearAndReset" class="btn btn-sm btn-danger">Clear URL & Reset</button>
-      <p class="text-xs text-muted mt-2">Deletes saved URL and reverts to compiled default.</p>
+      <button @click="clearAndReset" class="btn btn-sm btn-danger">Clear URL & Key & Reset</button>
+      <p class="text-xs text-muted mt-2">Deletes saved URL, API key, and reverts to defaults.</p>
     </div>
   </div>
 </template>
